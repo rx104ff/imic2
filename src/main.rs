@@ -1,3 +1,21 @@
+mod token;
+mod parser;
+mod ast;
+
+use token::tokenize;
+use parser::Parser;
+
 fn main() {
-    println!("Hello, world!");
+    let input = "f = ()[fun x -> x + 1], y = 2 |- f y";
+
+    let tokens = tokenize(input);
+    let mut parser = Parser::new(tokens);
+    let (env, expr) = parser.parse_program();
+
+    println!("Parsed environment:");
+    for (var, val) in env.iter() {
+        println!("  {:?} = {:?}", var, val);
+    }
+
+    println!("\nParsed expression:\n  {:?}", expr);
 }

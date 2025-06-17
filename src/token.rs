@@ -6,14 +6,27 @@ pub enum Token {
     If,
     Then,
     Else,
-    Ident(String),
-    Number(i64),
-    Equals,
-    Arrow,
+    Match,
+    With,
+    Fun,
+    Rec,
     Lambda,
+    Arrow,
+    Equals,
+    Bar,
+    Minus,
+    Plus,
+    Star,
+    Lt,
+    ColonColon,
+    Int(i64),
+    Bool(bool),
+    Ident(String),
     LParen,
     RParen,
-    Op(String),
+    LBracket,
+    RBracket,
+    Comma,     // <-- Added here
     EOF,
 }
 
@@ -26,10 +39,10 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             c if c.is_whitespace() => {
                 chars.next();
             }
-            c if c.is_alphabetic() => {
+            c if c.is_ascii_alphabetic() => {
                 let mut ident = String::new();
-                while let Some(c) = chars.peek().copied() {
-                    if c.is_alphanumeric() {
+                while let Some(&c) = chars.peek() {
+                    if c.is_ascii_alphanumeric() {
                         ident.push(c);
                         chars.next();
                     } else {
@@ -42,25 +55,35 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     "if" => Token::If,
                     "then" => Token::Then,
                     "else" => Token::Else,
+                    "match" => Token::Match,
+                    "with" => Token::With,
+                    "fun" => Token::Fun,
+                    "rec" => Token::Rec,
+                    "true" => Token::Bool(true),
+                    "false" => Token::Bool(false),
                     _ => Token::Ident(ident),
                 };
                 tokens.push(token);
             }
-            c if c.is_digit(10) => {
-                let mut num = String::new();
-                while let Some(c) = chars.peek().copied() {
-                    if c.is_digit(10) {
-                        num.push(c);
+            c if c.is_ascii_digit() => {
+                let mut number = String::new();
+                while let Some(&c) = chars.peek() {
+                    if c.is_ascii_digit() {
+                        number.push(c);
                         chars.next();
                     } else {
                         break;
                     }
                 }
-                tokens.push(Token::Number(num.parse().unwrap()));
+                tokens.push(Token::Int(number.parse().unwrap()));
             }
             '=' => {
                 chars.next();
                 tokens.push(Token::Equals);
+            }
+            '|' => {
+                chars.next();
+                tokens.push(Token::Bar);
             }
             '-' => {
                 chars.next();
@@ -68,12 +91,29 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     chars.next();
                     tokens.push(Token::Arrow);
                 } else {
-                    tokens.push(Token::Op("-".to_string()));
+                    tokens.push(Token::Minus);
                 }
             }
-            '\\' => {
+            '+' => {
                 chars.next();
-                tokens.push(Token::Lambda);
+                tokens.push(Token::Plus);
+            }
+            '*' => {
+                chars.next();
+                tokens.push(Token::Star);
+            }
+            '<' => {
+                chars.next();
+                tokens.push(Token::Lt);
+            }
+            ':' => {
+                chars.next();
+                if chars.peek() == Some(&':') {
+                    chars.next();
+                    tokens.push(Token::ColonColon);
+                } else {
+                    panic!("Unexpected character after ':'");
+                }
             }
             '(' => {
                 chars.next();
@@ -83,9 +123,17 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 chars.next();
                 tokens.push(Token::RParen);
             }
-            '+' | '*' | '/' => {
-                let op = chars.next().unwrap();
-                tokens.push(Token::Op(op.to_string()));
+            '[' => {
+                chars.next();
+                tokens.push(Token::LBracket);
+            }
+            ']' => {
+                chars.next();
+                tokens.push(Token::RBracket);
+            }
+            ',' => {
+                chars.next();
+                tokens.push(Token::Comma); // <-- Added here
             }
             _ => {
                 panic!("Unexpected character: {}", ch);
@@ -96,4 +144,3 @@ pub fn tokenize(input: &str) -> Vec<Token> {
     tokens.push(Token::EOF);
     tokens
 }
-
