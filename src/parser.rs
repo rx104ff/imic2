@@ -106,37 +106,33 @@ impl Parser {
         }
     }
 
+    fn collect_tokens_until_rbracket(&mut self) -> Vec<Token> {
+        let mut tokens = vec![];
+        let mut depth = 1;
+        while let Some(token) = self.peek().cloned() {
+            self.advance();
+            match token {
+                Token::LBracket => {
+                    depth += 1;
+                }
+                Token::RBracket => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            tokens.push(token);
+        }
+        tokens
+    }
+
     fn parse_func_val(&mut self, env: Env) -> Value {
         self.expect(&Token::Fun);
         let param = self.next_var();
         self.expect(&Token::Arrow);
-
-        let mut body_tokens = vec![];
-        let mut depth = 1; // already inside one [
-        while let Some(token) = self.peek().cloned() {
-            match token {
-                Token::LBracket => {
-                    depth += 1;
-                    body_tokens.push(token);
-                    self.advance();
-                }
-                Token::RBracket => {
-                    if depth == 1 {
-                        self.advance();
-                        break;
-                    } else {
-                        depth -= 1;
-                        body_tokens.push(token);
-                        self.advance();
-                    }
-                }
-                _ => {
-                    body_tokens.push(token);
-                    self.advance();
-                }
-            }
-        }
-
+        let body_tokens = self.collect_tokens_until_rbracket();
         let mut inner_parser = Parser::new(body_tokens);
         let body = inner_parser.parse_expr();
         Value::FunVal(param, Box::new(body), env)
@@ -149,43 +145,65 @@ impl Parser {
         self.expect(&Token::Fun);
         let param = self.next_var();
         self.expect(&Token::Arrow);
-
-        let mut body_tokens = vec![];
-        let mut depth = 1; // already inside one [
-        while let Some(token) = self.peek().cloned() {
-            match token {
-                Token::LBracket => {
-                    depth += 1;
-                    body_tokens.push(token);
-                    self.advance();
-                }
-                Token::RBracket => {
-                    if depth == 1 {
-                        self.advance();
-                        break;
-                    } else {
-                        depth -= 1;
-                        body_tokens.push(token);
-                        self.advance();
-                    }
-                }
-                _ => {
-                    body_tokens.push(token);
-                    self.advance();
-                }
-            }
-        }
-
+        let body_tokens = self.collect_tokens_until_rbracket();
         let mut inner_parser = Parser::new(body_tokens);
         let body = inner_parser.parse_expr();
         Value::RecFunVal(name, param, Box::new(body), env)
     }
 
     fn parse_expr(&mut self) -> Expr {
+        self.parse_add_sub()
+    }
+
+    fn parse_add_sub(&mut self) -> Expr {
+        let mut expr = self.parse_mul_div();
+        while let Some(op) = self.peek() {
+            match op {
+                Token::Plus | Token::Minus => {
+                    let op = match self.peek().unwrap() {
+                        Token::Plus => Op::Add,
+                        Token::Minus => Op::Sub,
+                        _ => unreachable!(),
+                    };
+                    self.advance();
+                    let right = self.parse_mul_div();
+                    expr = Expr::BinOp(Box::new(expr), op, Box::new(right));
+                }
+                _ => break,
+            }
+        }
+        expr
+    }
+
+    fn parse_mul_div(&mut self) -> Expr {
+        let mut expr = self.parse_app_or_atom();
+        while let Some(op) = self.peek() {
+            match op {
+                Token::Star => {
+                    self.advance();
+                    let right = self.parse_app_or_atom();
+                    expr = Expr::BinOp(Box::new(expr), Op::Mul, Box::new(right));
+                }
+                _ => break,
+            }
+        }
+        expr
+    }
+
+    fn parse_app_or_atom(&mut self) -> Expr {
+        let mut expr = self.parse_atom();
+        while matches!(self.peek(), Some(Token::Ident(_)) | Some(Token::Int(_)) | Some(Token::LParen)) {
+            let arg = self.parse_atom();
+            expr = Expr::App(Box::new(expr), Box::new(arg));
+        }
+        expr
+    }
+
+    fn parse_atom(&mut self) -> Expr {
         match self.peek() {
             Some(Token::If) => self.parse_if(),
             Some(Token::Let) => self.parse_let(),
-            Some(Token::Ident(_)) => self.parse_var_or_app(),
+            Some(Token::Ident(_)) => Expr::Var(self.next_var()),
             Some(Token::Int(_)) => self.parse_int(),
             Some(Token::LParen) => {
                 self.advance();
@@ -226,15 +244,6 @@ impl Parser {
             let cont = self.parse_expr();
             Expr::Let(name, Box::new(bound_expr), Box::new(cont))
         }
-    }
-
-    fn parse_var_or_app(&mut self) -> Expr {
-        let mut expr = Expr::Var(self.next_var());
-        while matches!(self.peek(), Some(Token::Ident(_)) | Some(Token::Int(_))) {
-            let arg = self.parse_expr();
-            expr = Expr::App(Box::new(expr), Box::new(arg));
-        }
-        expr
     }
 
     fn parse_int(&mut self) -> Expr {

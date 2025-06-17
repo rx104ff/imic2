@@ -1,9 +1,11 @@
 mod token;
 mod parser;
 mod ast;
+mod eval;
 
 use token::tokenize;
 use parser::Parser;
+use eval::ml4::derive;
 
 fn main() {
     let input = "f = ()[fun x -> x + 1], y = 2 |- f y";
@@ -18,4 +20,7 @@ fn main() {
     }
 
     println!("\nParsed expression:\n  {:?}", expr);
+
+    let derivation = derive(&env, &expr);
+    println!("\nDerivation:\n{}", derivation);
 }
