@@ -8,7 +8,7 @@ use parser::Parser;
 use eval::ml4::derive;
 
 fn main() {
-    let input = "f = ()[fun x -> x + 1], y = 2 |- f y";
+    let input = "|- let f = fun x -> match x with [] -> 0 | a :: b -> a in f (4::[]) + f [] + f (1 :: 2 :: 3 :: [])";
 
     let tokens = tokenize(input);
     let mut parser = Parser::new(tokens);

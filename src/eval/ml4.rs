@@ -1,6 +1,6 @@
 // src/ml4.rs
 
-use crate::ast::{Expr, Value, Env, Var, Op};
+use crate::ast::{Expr, Value, Env, Op};
 use std::fmt;
 use std::rc::Rc;
 pub struct Derivation {
@@ -26,7 +26,7 @@ impl Derivation {
         for sub in &self.sub_derivations {
             sub.fmt_with_indent(f, indent_level + 1)?;
         }
-        writeln!(f, "{}}}", indent_str)
+        writeln!(f, "{}}};", indent_str)
     }
 }
 
@@ -151,26 +151,61 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
         Expr::BinOp(e1, op, e2) => {
             let d1 = derive(env, e1);
             let d2 = derive(env, e2);
-            let result = match (d1.result.clone(), d2.result.clone(), op) {
-                (Value::Int(i1), Value::Int(i2), Op::Add) => Value::Int(i1 + i2),
-                (Value::Int(i1), Value::Int(i2), Op::Sub) => Value::Int(i1 - i2),
-                (Value::Int(i1), Value::Int(i2), Op::Mul) => Value::Int(i1 * i2),
-                (Value::Int(i1), Value::Int(i2), Op::Lt) => Value::Bool(i1 < i2),
+            let (v1, v2) = (d1.result.clone(), d2.result.clone());
+
+            let (result, rule, basic_rule) = match (v1.clone(), v2.clone(), op) {
+                (Value::Int(i1), Value::Int(i2), Op::Add) => (
+                    Value::Int(i1 + i2),
+                    "E-Plus",
+                    Some(Derivation {
+                        env: Rc::new(vec![]),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2))),
+                        result: Value::Int(i1 + i2),
+                        rule: "B-Plus".to_string(),
+                        sub_derivations: vec![],
+                    }),
+                ),
+                (Value::Int(i1), Value::Int(i2), Op::Sub) => (
+                    Value::Int(i1 - i2),
+                    "E-Minus",
+                    Some(Derivation {
+                        env: Rc::new(vec![]),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2))),
+                        result: Value::Int(i1 - i2),
+                        rule: "B-Minus".to_string(),
+                        sub_derivations: vec![],
+                    }),
+                ),
+                (Value::Int(i1), Value::Int(i2), Op::Mul) => (
+                    Value::Int(i1 * i2),
+                    "E-Times",
+                    Some(Derivation {
+                        env: Rc::new(vec![]),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2))),
+                        result: Value::Int(i1 * i2),
+                        rule: "B-Times".to_string(),
+                        sub_derivations: vec![],
+                    }),
+                ),
+                (Value::Int(i1), Value::Int(i2), Op::Lt) => (
+                    Value::Bool(i1 < i2),
+                    "E-Lt",
+                    None, // no B-Lt rule needed
+                ),
                 _ => panic!("Invalid binary op eval"),
             };
-            let rule = match op {
-                Op::Add => "E-Plus",
-                Op::Sub => "E-Minus",
-                Op::Mul => "E-Times",
-                Op::Lt => "E-Lt",
-                _ => unreachable!(),
-            };
+
+            let mut sub_derivations = vec![d1, d2];
+            if let Some(basic) = basic_rule {
+                sub_derivations.push(basic);
+            }
+
             Derivation {
                 env: Rc::clone(env),
                 expr: expr.clone(),
                 result,
                 rule: rule.to_string(),
-                sub_derivations: vec![d1, d2],
+                sub_derivations,
             }
         }
         Expr::If(cond, e_then, e_else) => {
