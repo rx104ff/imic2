@@ -2,13 +2,14 @@ mod token;
 mod parser;
 mod ast;
 mod eval;
+mod proof;
 
 use token::tokenize;
 use parser::Parser;
-use eval::ml4::derive;
+use eval::ml3::derive;
 
 fn main() {
-    let input = "|- let f = fun x -> match x with [] -> 0 | a :: b -> a in f (4::[]) + f [] + f (1 :: 2 :: 3 :: [])";
+    let input = "|- let y = 2 in fun x -> x + y";
 
     let tokens = tokenize(input);
     let mut parser = Parser::new(tokens);

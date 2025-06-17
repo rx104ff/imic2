@@ -3,13 +3,8 @@
 use crate::ast::{Expr, Value, Env, Op};
 use std::fmt;
 use std::rc::Rc;
-pub struct Derivation {
-    pub env: Env,
-    pub expr: Expr,
-    pub result: Value,
-    pub rule: String,
-    pub sub_derivations: Vec<Derivation>,
-}
+use crate::proof::Derivation;
+
 
 impl Derivation {
         fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent_level: usize) -> fmt::Result {
@@ -267,7 +262,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     let mut new_env = (**closure_env).to_vec();
                     new_env.push((param.clone(), darg.result.clone()));
                     let rc_env = Rc::new(new_env);
-                    let d_body = derive(&rc_env, body);
+                    let d_body = derive(&rc_env, &body);
                     result = d_body.result.clone();
                     sub_derivations = vec![df, darg, d_body];
                     Derivation {
@@ -283,7 +278,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     new_env.push((param.clone(), darg.result.clone()));
                     new_env.push((name.clone(), Value::RecFunVal(name.clone(), param.clone(), body.clone(), Rc::new(new_env.clone()))));
                     let rc_env = Rc::new(new_env);
-                    let d_body = derive(&rc_env, body);
+                    let d_body = derive(&rc_env, &body);
                     result = d_body.result.clone();
                     sub_derivations = vec![df, darg, d_body];
                     Derivation {
