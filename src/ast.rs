@@ -26,9 +26,9 @@ pub enum Expr {
     Let(Var, Box<Expr>, Box<Expr>),
     LetRec(Var, Var, Box<Expr>, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
-    BinOp(Box<Expr>, Op, Box<Expr>),
+    BinOp(Box<Expr>, Op, Box<Expr>, bool),
     Fun(Var, Box<Expr>),
-    App(Box<Expr>, Box<Expr>),
+    App(Box<Expr>, Box<Expr>, bool),
     Nil,
     Cons(Box<Expr>, Box<Expr>),
     Match(Box<Expr>, Box<Expr>, Var, Var, Box<Expr>),
@@ -52,6 +52,7 @@ pub enum Op {
     Sub,
     Mul,
     Lt,
+    Cons,
 }
 
 impl fmt::Display for Var {

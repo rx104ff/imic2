@@ -9,7 +9,7 @@ use parser::Parser;
 use eval::ml3::derive;
 
 fn main() {
-    let input = "|- let y = 2 in fun x -> x + y";
+    let input = "|- (1 + 2) :: (3 + 4) :: []";
 
     let tokens = tokenize(input);
     let mut parser = Parser::new(tokens);

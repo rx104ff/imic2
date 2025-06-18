@@ -57,9 +57,15 @@ impl ToML4String for Expr {
             Expr::Let(v, e1, e2) => format!("let {} = {} in {}", v.0, e1.to_ml4_string(), e2.to_ml4_string()),
             Expr::LetRec(f, x, body, e2) => format!("let rec {} = fun {} -> {} in {}", f.0, x.0, body.to_ml4_string(), e2.to_ml4_string()),
             Expr::If(c, t, e) => format!("if {} then {} else {}", c.to_ml4_string(), t.to_ml4_string(), e.to_ml4_string()),
-            Expr::BinOp(e1, op, e2) => format!("{} {} {}", e1.to_ml4_string(), op.to_ml4_string(), e2.to_ml4_string()),
+            Expr::BinOp(e1, op, e2, is_paren) => {
+                let s = format!("{} {} {}", e1.to_ml4_string(), op.to_ml4_string(), e2.to_ml4_string());
+                if *is_paren { format!("({})", s) } else { s }
+            }
+            Expr::App(f, arg, is_paren) => {
+                let s = format!("{} {}", f.to_ml4_string(), arg.to_ml4_string());
+                if *is_paren { format!("({})", s) } else { s }
+            }
             Expr::Fun(param, body) => format!("fun {} -> {}", param.0, body.to_ml4_string()),
-            Expr::App(f, arg) => format!("{} {}", f.to_ml4_string(), arg.to_ml4_string()),
             Expr::Nil => "[]".to_string(),
             Expr::Cons(h, t) => format!("{} :: {}", h.to_ml4_string(), t.to_ml4_string()),
             Expr::Match(e, nil_case, hd, tl, cons_case) => format!(
@@ -107,6 +113,7 @@ impl ToML4String for Op {
             Op::Add => "+",
             Op::Sub => "-",
             Op::Mul => "*",
+            Op::Cons => "::",
             Op::Lt => "<",
         }
         .to_string()
@@ -143,7 +150,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
             }
             panic!("Unbound variable: {}", x.0)
         }
-        Expr::BinOp(e1, op, e2) => {
+        Expr::BinOp(e1, op, e2, is_paren) => {
             let d1 = derive(env, e1);
             let d2 = derive(env, e2);
             let (v1, v2) = (d1.result.clone(), d2.result.clone());
@@ -154,7 +161,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     "E-Plus",
                     Some(Derivation {
                         env: Rc::new(vec![]),
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2))),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2)), *is_paren),
                         result: Value::Int(i1 + i2),
                         rule: "B-Plus".to_string(),
                         sub_derivations: vec![],
@@ -165,7 +172,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     "E-Minus",
                     Some(Derivation {
                         env: Rc::new(vec![]),
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2))),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2)), *is_paren),
                         result: Value::Int(i1 - i2),
                         rule: "B-Minus".to_string(),
                         sub_derivations: vec![],
@@ -176,7 +183,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     "E-Times",
                     Some(Derivation {
                         env: Rc::new(vec![]),
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2))),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2)), *is_paren),
                         result: Value::Int(i1 * i2),
                         rule: "B-Times".to_string(),
                         sub_derivations: vec![],
@@ -186,6 +193,11 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     Value::Bool(i1 < i2),
                     "E-Lt",
                     None, // no B-Lt rule needed
+                ),
+                (v_head, v_tail, Op::Cons) => (
+                    Value::Cons(Box::new(v_head.clone()), Box::new(v_tail.clone())),
+                    "E-Cons",
+                    None,
                 ),
                 _ => panic!("Invalid binary op eval"),
             };
@@ -252,11 +264,11 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                 sub_derivations: vec![],
             }
         }
-        Expr::App(f, arg) => {
+        Expr::App(f, arg, is_paren) => {
             let df = derive(env, f);
             let darg = derive(env, arg);
             let result;
-            let mut sub_derivations;
+            let sub_derivations;
             match &df.result {
                 Value::FunVal(param, body, closure_env) => {
                     let mut new_env = (**closure_env).to_vec();
@@ -267,7 +279,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     sub_derivations = vec![df, darg, d_body];
                     Derivation {
                         env: Rc::clone(env),
-                        expr: expr.clone(),
+                        expr: Expr::App(f.clone(), arg.clone(), *is_paren),
                         result,
                         rule: "E-App".to_string(),
                         sub_derivations,
@@ -283,7 +295,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     sub_derivations = vec![df, darg, d_body];
                     Derivation {
                         env: Rc::clone(env),
-                        expr: expr.clone(),
+                        expr: Expr::App(f.clone(), arg.clone(), *is_paren),
                         result,
                         rule: "E-AppRec".to_string(),
                         sub_derivations,
