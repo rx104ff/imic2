@@ -199,17 +199,18 @@ impl Parser {
     }
 
     fn parse_cons_prec(&mut self, paren: bool) -> Expr {
-        let mut expr = self.parse_add_sub_prec(false);
-        while let Some(Token::ColonColon) = self.peek() {
-            self.advance();
-            let right = self.parse_add_sub_prec(false);
-            expr = Expr::BinOp(Box::new(expr), Op::Cons, Box::new(right), paren);
-        }
-        expr
+        let lhs = self.parse_add_sub_prec(false);
+        self.parse_cons_tail(lhs, paren)
     }
 
-    fn parse_add_sub(&mut self) -> Expr {
-        self.parse_add_sub_prec(false)
+    fn parse_cons_tail(&mut self, lhs: Expr, paren: bool) -> Expr {
+        if let Some(Token::ColonColon) = self.peek() {
+            self.advance();
+            let rhs = self.parse_cons_prec(false); // ✅ right-recursive to ensure right-associativity
+            Expr::BinOp(Box::new(lhs), Op::Cons, Box::new(rhs), paren)
+        } else {
+            lhs
+        }
     }
 
     fn parse_add_sub_prec(&mut self, paren: bool) -> Expr {
@@ -227,10 +228,6 @@ impl Parser {
         expr
     }
 
-    fn parse_mul_div(&mut self) -> Expr {
-        self.parse_mul_div_prec(false)
-    }
-
     fn parse_mul_div_prec(&mut self, paren: bool) -> Expr {
         let mut expr = self.parse_app_or_atom();
         while let Some(op_token) = self.peek() {
@@ -245,24 +242,9 @@ impl Parser {
         expr
     }
 
-    fn parse_paren_expr(&mut self) -> Expr {
-        self.advance(); // consume '('
-        let mut expr = self.parse_expr();
-        expr = mark_expr_paren(expr);
-        self.expect(&Token::RParen);
-
-        // Handle function application after paren: (f) x
-        while matches!(self.peek(), Some(Token::Ident(_)) | Some(Token::Int(_)) | Some(Token::LParen)) {
-            let arg = self.parse_atom();
-            expr = Expr::App(Box::new(expr), Box::new(arg), true);
-        }
-
-        expr
-    }
-
     fn parse_app_or_atom(&mut self) -> Expr {
         let mut expr = self.parse_atom();
-        while matches!(self.peek(), Some(Token::Ident(_)) | Some(Token::Int(_)) | Some(Token::LParen)) {
+        while matches!(self.peek(), Some(Token::Ident(_)) | Some(Token::Int(_)) | Some(Token::LParen) | Some(Token::Nil)) {
             let arg = self.parse_atom();
             expr = Expr::App(Box::new(expr), Box::new(arg), false);
         }
@@ -286,11 +268,11 @@ impl Parser {
                 }
             }
             Some(Token::Fun) => self.parse_fun_expr(),
-            Some(Token::LBracket) => {
+            Some(Token::Nil) => {
                 self.advance();
-                self.expect(&Token::RBracket);
                 Expr::Nil
             },
+            Some(Token::Match) => self.parse_match(),
             _ => panic!("Unexpected token in expression: {:?}", self.peek()),
         }
     }
@@ -343,4 +325,27 @@ impl Parser {
         let body = self.parse_expr();
         Expr::Fun(param, Box::new(body))
     }
+
+    fn parse_match(&mut self) -> Expr {
+        self.expect(&Token::Match);
+        let expr = self.parse_expr();
+        self.expect(&Token::With);
+
+        // Case 1: [] -> e2
+        self.expect(&Token::Nil);
+        self.expect(&Token::Arrow);
+        let nil_case = self.parse_expr();
+
+        // Case 2: | x :: y -> e3
+        self.expect(&Token::Bar);
+        let hd = self.next_var();
+        self.expect(&Token::ColonColon);
+        let tl = self.next_var();
+        self.expect(&Token::Arrow);
+        let cons_case = self.parse_expr();
+
+        Expr::Match(Box::new(expr), Box::new(nil_case), hd, tl, Box::new(cons_case))
+    }
+
+
 }

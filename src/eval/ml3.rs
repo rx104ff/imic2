@@ -199,7 +199,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     "E-Cons",
                     None,
                 ),
-                _ => panic!("Invalid binary op eval"),
+                _ => panic!("Invalid binary op eval {:?}", op),
             };
 
             let mut sub_derivations = vec![d1, d2];
@@ -325,7 +325,6 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
             rule: "E-Nil".to_string(),
             sub_derivations: vec![],
         },
-
         Expr::Cons(e1, e2) => {
             let d1 = derive(env, e1);
             let d2 = derive(env, e2);

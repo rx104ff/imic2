@@ -9,9 +9,10 @@ use parser::Parser;
 use eval::ml3::derive;
 
 fn main() {
-    let input = "|- (1 + 2) :: (3 + 4) :: []";
+    let input = "f = ()[fun x -> match x with [] -> 0 | a :: b -> a] |- f (4::4::[]) + f([])";
 
     let tokens = tokenize(input);
+    println!("{:?}", tokens);
     let mut parser = Parser::new(tokens);
     let (env, expr) = parser.parse_program();
 

@@ -24,6 +24,7 @@ pub enum Token {
     Ident(String),
     LParen,
     RParen,
+    Nil,  
     LBracket,
     RBracket,
     Comma,     // <-- Added here
@@ -124,8 +125,13 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 tokens.push(Token::RParen);
             }
             '[' => {
-                chars.next();
-                tokens.push(Token::LBracket);
+                chars.next(); // consume '['
+                if let Some(&']') = chars.peek() {
+                    chars.next(); // consume ']'
+                    tokens.push(Token::Nil);
+                } else {
+                    tokens.push(Token::LBracket);
+                }
             }
             ']' => {
                 chars.next();
