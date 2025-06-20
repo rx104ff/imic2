@@ -3,6 +3,14 @@ use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LanguageVersion {
+    ML1,
+    ML2,
+    ML3,
+    ML4,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Var(pub String);
 

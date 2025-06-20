@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Value, Env};
+use crate::ast::{Expr, Value, Env, LanguageVersion};
 
 pub trait Axiom {
     fn to_axiom_string(&self) -> Option<String>;
@@ -10,4 +10,5 @@ pub struct Derivation {
     pub result: Value,
     pub rule: String,
     pub sub_derivations: Vec<Derivation>,
+    pub version: LanguageVersion,
 }

@@ -1,6 +1,6 @@
 // src/ml4.rs
 
-use crate::ast::{Expr, Value, Env, Op};
+use crate::ast::{Expr, Value, Env, Op, LanguageVersion, Var};
 use std::fmt;
 use std::rc::Rc;
 use crate::proof::{Derivation, Axiom};
@@ -19,7 +19,7 @@ impl Derivation {
             f,
             " {}{}{} evalto {} by {} {{",
             indent_str,
-            format_env(&self.env),
+            format_env(&self.env, self.version),
             self.expr.to_ml4_string(),
             self.result.to_ml4_string(),
             self.rule
@@ -77,7 +77,11 @@ impl Axiom for Derivation {
     }
 }
 
-fn format_env(env: &Env) -> String {
+fn format_env(env: &Env, version: LanguageVersion) -> String {
+    if version == LanguageVersion::ML1 {
+        return String::new();
+    }
+
     if env.is_empty() {
         String::from("|- ")
     } else {
@@ -202,7 +206,7 @@ impl ToML4String for Op {
     }
 }
 
-pub fn derive(env: &Env, expr: &Expr) -> Derivation {
+pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Derivation {
     match expr {
         Expr::Int(i) => Derivation {
             env: Rc::clone(env),
@@ -210,6 +214,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
             result: Value::Int(*i),
             rule: "E-Int".to_string(),
             sub_derivations: vec![],
+            version,
         },
         Expr::Bool(b) => Derivation {
             env: Rc::clone(env),
@@ -217,24 +222,62 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
             result: Value::Bool(*b),
             rule: "E-Bool".to_string(),
             sub_derivations: vec![],
+            version,
         },
-        Expr::Var(x) => {
-            for (v, val) in env.iter().rev() {
-                if v == x {
-                    return Derivation {
-                        env: Rc::clone(env),
-                        expr: expr.clone(),
-                        result: val.clone(),
-                        rule: "E-Var".to_string(),
-                        sub_derivations: vec![],
-                    };
-                }
+        Expr::Var(x) => match version {
+            LanguageVersion::ML1 => {
+                panic!("Error: Variables are not supported in ML1 (found: {})", x.0);
             }
-            panic!("Unbound variable: {}", x.0)
-        }
+            LanguageVersion::ML2 | LanguageVersion::ML3 => {
+                fn derive_var_recursive(env: &Env, current_expr: &Expr, x: &Var, version: LanguageVersion) -> Derivation {
+                    if env.is_empty() {
+                        panic!("Unbound variable: {}", x.0);
+                    }
+                    let last_index = env.len() - 1;
+                    let (last_var, last_val) = &env[last_index];
+                    if last_var == x {
+                        Derivation {
+                            env: Rc::clone(env),
+                            expr: current_expr.clone(),
+                            result: last_val.clone(),
+                            rule: "E-Var1".to_string(),
+                            sub_derivations: vec![],
+                            version,
+                        }
+                    } else {
+                        let sub_env = Rc::new(env[..last_index].to_vec());
+                        let sub_derivation = derive_var_recursive(&sub_env, current_expr, x, version);
+                        Derivation {
+                            env: Rc::clone(env),
+                            expr: current_expr.clone(),
+                            result: sub_derivation.result.clone(),
+                            rule: "E-Var2".to_string(),
+                            sub_derivations: vec![sub_derivation],
+                            version,
+                        }
+                    }
+                }
+                derive_var_recursive(env, expr, x, version)
+            }
+            LanguageVersion::ML4 => {
+                for (v, val) in env.iter().rev() {
+                    if v == x {
+                        return Derivation {
+                            env: Rc::clone(env),
+                            expr: expr.clone(),
+                            result: val.clone(),
+                            rule: "E-Var".to_string(),
+                            sub_derivations: vec![],
+                            version,
+                        };
+                    }
+                }
+                panic!("Unbound variable: {}", x.0)
+            }
+        },
         Expr::BinOp(e1, op, e2, is_paren) => {
-            let d1 = derive(env, e1);
-            let d2 = derive(env, e2);
+            let d1 = derive(env, e1, version);
+            let d2 = derive(env, e2, version);
             let (v1, v2) = (d1.result.clone(), d2.result.clone());
 
             let (result, rule, basic_rule) = match (v1.clone(), v2.clone(), op) {
@@ -247,6 +290,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                         result: Value::Int(i1 + i2),
                         rule: "B-Plus".to_string(),
                         sub_derivations: vec![],
+                        version,
                     }),
                 ),
                 (Value::Int(i1), Value::Int(i2), Op::Sub) => (
@@ -258,6 +302,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                         result: Value::Int(i1 - i2),
                         rule: "B-Minus".to_string(),
                         sub_derivations: vec![],
+                        version,
                     }),
                 ),
                 (Value::Int(i1), Value::Int(i2), Op::Mul) => (
@@ -269,6 +314,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                         result: Value::Int(i1 * i2),
                         rule: "B-Times".to_string(),
                         sub_derivations: vec![],
+                        version,
                     }),
                 ),
                 (Value::Int(i1), Value::Int(i2), Op::Lt) => (
@@ -280,6 +326,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                         result: Value::Bool(i1 < i2),
                         rule: "B-Lt".to_string(),
                         sub_derivations: vec![],
+                        version,
                     }),
                 ),
                 (v_head, v_tail, Op::Cons) => (
@@ -301,46 +348,50 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                 result,
                 rule: rule.to_string(),
                 sub_derivations,
+                version,
             }
         }
         Expr::If(cond, e_then, e_else, _) => {
-            let d_cond = derive(env, cond);
+            let d_cond = derive(env, cond, version);
             match d_cond.result {
                 Value::Bool(true) => {
-                    let d_then = derive(env, e_then);
+                    let d_then = derive(env, e_then, version);
                     Derivation {
                         env: Rc::clone(env),
                         expr: expr.clone(),
                         result: d_then.result.clone(),
                         rule: "E-IfT".to_string(),
                         sub_derivations: vec![d_cond, d_then],
+                        version,
                     }
                 }
                 Value::Bool(false) => {
-                    let d_else = derive(env, e_else);
+                    let d_else = derive(env, e_else, version);
                     Derivation {
                         env: Rc::clone(env),
                         expr: expr.clone(),
                         result: d_else.result.clone(),
                         rule: "E-IfF".to_string(),
                         sub_derivations: vec![d_cond, d_else],
+                        version,
                     }
                 }
                 _ => panic!("Condition must evaluate to a boolean"),
             }
         }
         Expr::Let(x, e1, e2, is_paren) => {
-            let d1 = derive(env, e1);
+            let d1 = derive(env, e1, version);
             let mut new_env = (**env).clone();
             new_env.push((x.clone(), d1.result.clone()));
             let rc_env = Rc::new(new_env);
-            let d2 = derive(&rc_env, e2);
+            let d2 = derive(&rc_env, e2, version);
             Derivation {
                 env: Rc::clone(env),
                 expr: expr.clone(),
                 result: d2.result.clone(),
                 rule: "E-Let".to_string(),
                 sub_derivations: vec![d1, d2],
+                version,
             }
         }
         Expr::Fun(param, body, is_paren) => {
@@ -350,11 +401,12 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                 result: Value::FunVal(param.clone(), body.clone(), Rc::clone(env), *is_paren),
                 rule: "E-Fun".to_string(),
                 sub_derivations: vec![],
+                version,
             }
         }
         Expr::App(f, arg, is_paren) => {
-            let df = derive(env, f);
-            let darg = derive(env, arg);
+            let df = derive(env, f, version);
+            let darg = derive(env, arg, version);
             let result;
             let sub_derivations;
             match &df.result {
@@ -362,7 +414,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     let mut new_env = (**closure_env).to_vec();
                     new_env.push((param.clone(), darg.result.clone()));
                     let rc_env = Rc::new(new_env);
-                    let d_body = derive(&rc_env, &body);
+                    let d_body = derive(&rc_env, &body, version);
                     result = d_body.result.clone();
                     sub_derivations = vec![df, darg, d_body];
                     Derivation {
@@ -371,6 +423,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                         result,
                         rule: "E-App".to_string(),
                         sub_derivations,
+                        version,
                     }
                 }
                 Value::RecFunVal(name, param, body, closure_env,is_paren_2) => {
@@ -378,7 +431,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     new_env.push((name.clone(), Value::RecFunVal(name.clone(), param.clone(), body.clone(), closure_env.clone(), *is_paren_2)));
                     new_env.push((param.clone(), darg.result.clone()));
                     let rc_env = Rc::new(new_env);
-                    let d_body = derive(&rc_env, &body);
+                    let d_body = derive(&rc_env, &body, version);
                     result = d_body.result.clone();
                     sub_derivations = vec![df, darg, d_body];
                     Derivation {
@@ -387,6 +440,7 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                         result,
                         rule: "E-AppRec".to_string(),
                         sub_derivations,
+                        version,
                     }
                 }
                 _ => panic!("Tried to apply non-function"),
@@ -397,13 +451,14 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
             let rec_val = Value::RecFunVal(f.clone(), x.clone(), body.clone(), Rc::new(new_env.clone()), *is_paren);
             new_env.push((f.clone(), rec_val.clone()));
             let rc_env = Rc::new(new_env);
-            let d2 = derive(&rc_env, e2);
+            let d2 = derive(&rc_env, e2, version);
             Derivation {
                 env: Rc::clone(env),
                 expr: expr.clone(),
                 result: d2.result.clone(),
                 rule: "E-LetRec".to_string(),
                 sub_derivations: vec![d2],
+                version,
             }
         }
         Expr::Nil => Derivation {
@@ -412,30 +467,33 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
             result: Value::Nil,
             rule: "E-Nil".to_string(),
             sub_derivations: vec![],
+            version,
         },
         Expr::Cons(e1, e2, is_paren) => {
-            let d1 = derive(env, e1);
-            let d2 = derive(env, e2);
+            let d1 = derive(env, e1, version);
+            let d2 = derive(env, e2, version);
             Derivation {
                 env: Rc::clone(env),
                 expr: expr.clone(),
                 result: Value::Cons(Box::new(d1.result.clone()), Box::new(d2.result.clone()), *is_paren),
                 rule: "E-Cons".to_string(),
                 sub_derivations: vec![d1, d2],
+                version,
             }
         },
 
         Expr::Match(e, e_nil, x, y, e_cons, is_paren) => {
-            let d_expr = derive(env, e);
+            let d_expr = derive(env, e, version);
             match d_expr.result.clone() {
                 Value::Nil => {
-                    let d_nil = derive(env, e_nil);
+                    let d_nil = derive(env, e_nil, version);
                     Derivation {
                         env: Rc::clone(env),
                         expr: expr.clone(),
                         result: d_nil.result.clone(),
                         rule: "E-MatchNil".to_string(),
                         sub_derivations: vec![d_expr, d_nil],
+                        version,
                     }
                 }
                 Value::Cons(v1, v2, is_paren) => {
@@ -443,13 +501,14 @@ pub fn derive(env: &Env, expr: &Expr) -> Derivation {
                     new_env.push((x.clone(), *v1));
                     new_env.push((y.clone(), *v2));
                     let rc_env = Rc::new(new_env);
-                    let d_cons = derive(&rc_env, e_cons);
+                    let d_cons = derive(&rc_env, e_cons, version);
                     Derivation {
                         env: Rc::clone(env),
                         expr: expr.clone(),
                         result: d_cons.result.clone(),
                         rule: "E-MatchCons".to_string(),
                         sub_derivations: vec![d_expr, d_cons],
+                        version,
                     }
                 }
                 _ => panic!("Cannot match on non-list value"),
