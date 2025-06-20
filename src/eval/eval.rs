@@ -1,9 +1,10 @@
 // src/ml4.rs
 
-use crate::ast::{Expr, Value, Env, Op, LanguageVersion, Var};
+use crate::eval::ast::{Expr, Value, Env, Op, LanguageVersion, Var};
+use crate::eval::proof::{Derivation, Axiom};
+
 use std::fmt;
 use std::rc::Rc;
-use crate::proof::{Derivation, Axiom};
 
 
 impl Derivation {

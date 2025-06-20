@@ -5,7 +5,7 @@ This is a **derivation engine** for a simplified ML-style language, built to gen
 ## Usage
 
 ```bash
-cargo run -- <RULE_NAME> "PROGRAM"
+cargo run --bin <RULE_NAME> -- "PROGRAM"
 ```
 
 * `<RULE_NAME>` must be one of the supported derivation rule sets.

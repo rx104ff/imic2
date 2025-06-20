@@ -1,7 +1,7 @@
 // src/parser.rs
 
-use crate::ast::{Expr, Op, Var, Value, Env};
-use crate::token::Token;
+use crate::eval::ast::{Expr, Op, Var, Value, Env};
+use crate::eval::token::Token;
 use std::rc::Rc;
 
 fn mark_expr_paren(expr: Expr) -> Expr {

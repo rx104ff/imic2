@@ -2,14 +2,11 @@
 use std::env;
 use std::io;
 
-mod ast;
-mod token;
-mod parser;
-mod eval;
-mod proof;
+use imic2::eval::ast::LanguageVersion;
+use imic2::eval::eval::derive;
+use imic2::eval::parser::Parser;
+use imic2::eval::token;
 
-use ast::LanguageVersion;
-use eval::ml::derive;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -41,7 +38,7 @@ fn main() -> io::Result<()> {
     }
 
     let tokens = token::tokenize(&program);
-    let mut parser = parser::Parser::new(tokens);
+    let mut parser = Parser::new(tokens);
     let (env, expr) = parser.parse_program();
 
     let derivation = derive(&env, &expr, version);
