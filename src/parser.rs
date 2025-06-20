@@ -4,17 +4,23 @@ use crate::ast::{Expr, Op, Var, Value, Env};
 use crate::token::Token;
 use std::rc::Rc;
 
-pub struct Parser {
-    tokens: Vec<Token>,
-    pos: usize,
-}
-
 fn mark_expr_paren(expr: Expr) -> Expr {
     match expr {
         Expr::BinOp(e1, op, e2, _) => Expr::BinOp(e1, op, e2, true),
         Expr::App(f, arg, _) => Expr::App(f, arg, true),
-        _ => expr,
+        Expr::Fun(param, body, _) => Expr::Fun(param, body, true),
+        Expr::Let(v, e1, e2, _) => Expr::Let(v, e1, e2, true),
+        Expr::LetRec(f, x, body, e2, _) => Expr::LetRec(f, x, body, e2, true),
+        Expr::If(c, t, e, _) => Expr::If(c, t, e, true),
+        Expr::Match(e, nil_case, hd, tl, cons_case, _) => Expr::Match(e, nil_case, hd, tl, cons_case, true),
+        Expr::Cons(h, t, _) => Expr::Cons(h, t, true),
+        other => other,
     }
+}
+
+pub struct Parser {
+    tokens: Vec<Token>,
+    pos: usize,
 }
 
 impl Parser {
@@ -293,11 +299,7 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
                 self.advance();
                 let expr = self.parse_expr();
                 self.expect(&Token::RParen);
-                match expr {
-                    Expr::BinOp(lhs, op, rhs, _) => Expr::BinOp(lhs, op, rhs, true),
-                    Expr::App(f, arg, _) => Expr::App(f, arg, true),
-                    other => other,
-                }
+                mark_expr_paren(expr)
             }
             Some(Token::Fun) => self.parse_fun_expr(),
             Some(Token::Nil) => {
