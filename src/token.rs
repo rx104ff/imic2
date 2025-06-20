@@ -10,7 +10,6 @@ pub enum Token {
     With,
     Fun,
     Rec,
-    Lambda,
     Arrow,
     Equals,
     Bar,

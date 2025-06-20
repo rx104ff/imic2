@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Value, Env, Op};
+use crate::ast::{Expr, Value, Env};
 
 pub trait Axiom {
     fn to_axiom_string(&self) -> Option<String>;
