@@ -224,8 +224,3 @@ Currently, the following derivation rule sets are implemented:
 
 
 ```
-
-
-## 📜 License
-
-MIT License.
