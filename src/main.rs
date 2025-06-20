@@ -6,12 +6,10 @@ mod proof;
 
 use token::tokenize;
 use parser::Parser;
-use eval::ml3::derive;
+use eval::ml::derive;
 
 fn main() {
-    let input = "|- let rec apply = fun l -> fun x ->
-      match l with [] -> x | f :: l -> f (apply l x) in
-    apply ((fun x -> x * x) :: (fun y -> y + 3) :: []) 4 ";
+    let input = "|- (1 + 2) :: (3 + 4) :: []";
 
     let tokens = tokenize(input);
     println!("{:?}", tokens);
