@@ -229,7 +229,3 @@ Currently, the following derivation rule sets are implemented:
 ## 📜 License
 
 MIT License.
-
----
-
-Let me know if you want to add badges, contributor credits, or setup instructions.
