@@ -11,9 +11,9 @@ pub struct Parser {
 
 fn mark_expr_paren(expr: Expr) -> Expr {
     match expr {
+        Expr::BinOp(e1, op, e2, _) => Expr::BinOp(e1, op, e2, true),
         Expr::App(f, arg, _) => Expr::App(f, arg, true),
-        Expr::BinOp(lhs, op, rhs, _) => Expr::BinOp(lhs, op, rhs, true),
-        other => other,
+        _ => expr,
     }
 }
 
@@ -83,24 +83,24 @@ impl Parser {
         Rc::new(bindings)
     }
 
-        fn parse_value(&mut self) -> Value {
-        self.parse_list_value()
-    }
+    fn parse_value(&mut self) -> Value {
+    self.parse_list_value(false)
+}
 
-    fn parse_list_value(&mut self) -> Value {
-        let left = self.parse_single_value();
-        self.parse_list_tail(left)
-    }
+fn parse_list_value(&mut self, paren: bool) -> Value {
+    let left = self.parse_single_value();
+    self.parse_list_tail(left, paren)
+}
 
-    fn parse_list_tail(&mut self, left: Value) -> Value {
-        if let Some(Token::ColonColon) = self.peek() {
-            self.advance();
-            let right = self.parse_list_value();
-            Value::Cons(Box::new(left), Box::new(right))
-        } else {
-            left
-        }
+fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
+    if let Some(Token::ColonColon) = self.peek() {
+        self.advance();
+        let right = self.parse_list_value(false);
+        Value::Cons(Box::new(left), Box::new(right), paren)
+    } else {
+        left
     }
+}
 
     fn parse_single_value(&mut self) -> Value {
         match self.peek().cloned() {
@@ -117,10 +117,11 @@ impl Parser {
                 Value::Bool(false)
             }
             Some(Token::LParen) => {
-                // Possible function env or something else
                 self.advance();
                 let saved_pos = self.pos;
                 let env = self.parse_env_list();
+
+                // Try to parse as a function environment
                 if self.peek() == Some(&Token::RParen) {
                     self.advance();
                     if self.peek() == Some(&Token::LBracket) {
@@ -132,9 +133,16 @@ impl Parser {
                         }
                     }
                 }
-                // If we didn’t match the expected func env structure, it's not function
-                self.pos = saved_pos - 1; // rewind to before '('
-                panic!("Invalid value syntax: expected function environment or literal value.")
+
+                // Not a function env, so rewind and try to parse as a value in parens
+                self.pos = saved_pos;
+                let inner = self.parse_value();
+                self.expect(&Token::RParen);
+
+                match inner {
+                    Value::Cons(l, r, _) => Value::Cons(l, r, true),
+                    _ => inner,
+                }
             }
             Some(Token::LBracket) => {
                 self.advance();
@@ -174,7 +182,7 @@ impl Parser {
         let body_tokens = self.collect_tokens_until_rbracket();
         let mut inner_parser = Parser::new(body_tokens);
         let body = inner_parser.parse_expr();
-        Value::FunVal(param, Box::new(body), env)
+        Value::FunVal(param, Box::new(body), env, false)
     }
 
     fn parse_rec_func_val(&mut self, env: Env) -> Value {
@@ -187,11 +195,21 @@ impl Parser {
         let body_tokens = self.collect_tokens_until_rbracket();
         let mut inner_parser = Parser::new(body_tokens);
         let body = inner_parser.parse_expr();
-        Value::RecFunVal(name, param, Box::new(body), env)
+        Value::RecFunVal(name, param, Box::new(body), env, false)
     }
 
     fn parse_expr(&mut self) -> Expr {
-        self.parse_cons()
+        self.parse_lt()
+    }
+
+    fn parse_lt(&mut self) -> Expr {
+        let mut expr = self.parse_cons(); // parse lhs first
+        while let Some(Token::Lt) = self.peek() {
+            self.advance();
+            let right = self.parse_cons();
+            expr = Expr::BinOp(Box::new(expr), Op::Lt, Box::new(right), false);
+        }
+        expr
     }
 
     fn parse_cons(&mut self) -> Expr {
@@ -253,6 +271,20 @@ impl Parser {
 
     fn parse_atom(&mut self) -> Expr {
         match self.peek() {
+            Some(Token::Minus) => {
+                self.advance();
+                match self.peek().cloned() {
+                    Some(Token::Int(n)) => {
+                        self.advance();
+                        Expr::Int(-(n))
+                    }
+                    _ => {
+                        // Parse as unary minus: `-expr` => `0 - expr`
+                        let expr = self.parse_atom();
+                        Expr::BinOp(Box::new(Expr::Int(0)), Op::Sub, Box::new(expr), false)
+                    }
+                }
+            }
             Some(Token::If) => self.parse_if(),
             Some(Token::Let) => self.parse_let(),
             Some(Token::Ident(_)) => Expr::Var(self.next_var()),
@@ -261,10 +293,10 @@ impl Parser {
                 self.advance();
                 let expr = self.parse_expr();
                 self.expect(&Token::RParen);
-                // Mark this BinOp as parenthesized if applicable
                 match expr {
                     Expr::BinOp(lhs, op, rhs, _) => Expr::BinOp(lhs, op, rhs, true),
-                    _ => expr
+                    Expr::App(f, arg, _) => Expr::App(f, arg, true),
+                    other => other,
                 }
             }
             Some(Token::Fun) => self.parse_fun_expr(),
@@ -284,26 +316,29 @@ impl Parser {
         let then_branch = self.parse_expr();
         self.expect(&Token::Else);
         let else_branch = self.parse_expr();
-        Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch))
+        Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch), false)
     }
 
     fn parse_let(&mut self) -> Expr {
         self.expect(&Token::Let);
-        let name = self.next_var();
         if self.peek() == Some(&Token::Rec) {
-            self.advance();
-            let param = self.next_var();
-            self.expect(&Token::Arrow);
-            let body = self.parse_expr();
-            self.expect(&Token::In);
-            let cont = self.parse_expr();
-            Expr::LetRec(name, param, Box::new(body), Box::new(cont))
+            self.advance(); // consume 'rec'
+            let name    = self.next_var(); // 'name'
+            self.expect(&Token::Equals); // '='
+            self.expect(&Token::Fun); // 'fun'
+            let param = self.next_var(); // 'n'
+            self.expect(&Token::Arrow); // '->'
+            let body = self.parse_expr(); // parse the function body
+            self.expect(&Token::In); // 'in'
+            let cont = self.parse_expr(); // continuation expression
+            Expr::LetRec(name, param, Box::new(body), Box::new(cont), false)
         } else {
+            let name = self.next_var();
             self.expect(&Token::Equals);
             let bound_expr = self.parse_expr();
             self.expect(&Token::In);
             let cont = self.parse_expr();
-            Expr::Let(name, Box::new(bound_expr), Box::new(cont))
+            Expr::Let(name, Box::new(bound_expr), Box::new(cont), false)
         }
     }
 
@@ -323,7 +358,7 @@ impl Parser {
         let param = self.next_var();
         self.expect(&Token::Arrow);
         let body = self.parse_expr();
-        Expr::Fun(param, Box::new(body))
+        Expr::Fun(param, Box::new(body), false)
     }
 
     fn parse_match(&mut self) -> Expr {
@@ -344,7 +379,7 @@ impl Parser {
         self.expect(&Token::Arrow);
         let cons_case = self.parse_expr();
 
-        Expr::Match(Box::new(expr), Box::new(nil_case), hd, tl, Box::new(cons_case))
+        Expr::Match(Box::new(expr), Box::new(nil_case), hd, tl, Box::new(cons_case), false)
     }
 
 

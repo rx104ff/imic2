@@ -23,15 +23,15 @@ pub enum Expr {
     Int(i64),
     Bool(bool),
     Var(Var),
-    Let(Var, Box<Expr>, Box<Expr>),
-    LetRec(Var, Var, Box<Expr>, Box<Expr>),
-    If(Box<Expr>, Box<Expr>, Box<Expr>),
+    Let(Var, Box<Expr>, Box<Expr>, bool),
+    LetRec(Var, Var, Box<Expr>, Box<Expr>, bool),
+    If(Box<Expr>, Box<Expr>, Box<Expr>, bool),
     BinOp(Box<Expr>, Op, Box<Expr>, bool),
-    Fun(Var, Box<Expr>),
+    Fun(Var, Box<Expr>, bool),
     App(Box<Expr>, Box<Expr>, bool),
     Nil,
-    Cons(Box<Expr>, Box<Expr>),
-    Match(Box<Expr>, Box<Expr>, Var, Var, Box<Expr>),
+    Cons(Box<Expr>, Box<Expr>, bool),
+    Match(Box<Expr>, Box<Expr>, Var, Var, Box<Expr>, bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,9 +39,9 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Nil,
-    Cons(Box<Value>, Box<Value>),
-    FunVal(Var, Box<Expr>, Env),
-    RecFunVal(Var, Var, Box<Expr>, Env),
+    Cons(Box<Value>, Box<Value>, bool),
+    FunVal(Var, Box<Expr>, Env, bool),
+    RecFunVal(Var, Var, Box<Expr>, Env, bool),
 }
 
 pub type Env = Rc<Vec<(Var, Value)>>;
