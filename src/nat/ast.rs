@@ -40,23 +40,12 @@ impl Nat {
     }
 }
 
-// // Implement Display for pretty-printing the Nat values
-// impl fmt::Display for Nat {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match self {
-//             Nat::Z => write!(f, "Z"),
-//             Nat::S(n) => write!(f, "S({})", n),
-//         }
-//     }
-// }
-
 // An enum to represent the two types of arithmetic operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArithmeticOp {
     Plus,
     Times,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {

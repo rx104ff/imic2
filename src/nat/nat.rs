@@ -1,9 +1,6 @@
 use std::fmt;
 use crate::nat::ast::{ArithmeticOp, Derivation, Judgment, ComparisonMode, Nat};
 
-// NOTE: The following Display implementations would typically live in ast.rs
-// alongside the struct/enum definitions, but are included here for context.
-
 impl fmt::Display for Derivation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn fmt_with_indent(d: &Derivation, f: &mut fmt::Formatter, indent: usize) -> fmt::Result {
@@ -45,16 +42,12 @@ impl fmt::Display for Judgment {
 }
 
 
-/// The main entry point for the derivator.
-/// It dispatches to the correct proof-building function based on the judgment type.
 pub fn derive(j: &Judgment, mode: Option<ComparisonMode>) -> Result<Derivation, String> {
     match j {
-        // Arithmetic is always enabled.
         Judgment::Arithmetic { op, .. } => match op {
             ArithmeticOp::Plus => derive_plus(j),
             ArithmeticOp::Times => derive_times(j),
         },
-        // Comparison is only enabled if a specific mode was passed.
         Judgment::Comparison { .. } => {
             match mode {
                 Some(ComparisonMode::V1) => derive_compare_v1(j),
@@ -75,7 +68,7 @@ fn derive_plus(j: &Judgment) -> Result<Derivation, String> {
 
     let conclusion = format!("{}", j);
     match n1 {
-        // Rule P-ZERO: Z plus n is n
+        // Rule P-Zero: Z plus n is n
         Nat::Z => {
             if n2 == n3 {
                 Ok(Derivation {
@@ -176,7 +169,7 @@ fn derive_compare_v1(j: &Judgment) -> Result<Derivation, String> {
     Ok(Derivation { conclusion, rule: "L-Trans".to_string(), premises: vec![prem1_d, prem2_d] })
 }
 
-/// Derivator for CompareNat2: L-ZERO and L-SuccSucc
+/// Derivator for CompareNat2: L-Zero and L-SuccSucc
 fn derive_compare_v2(j: &Judgment) -> Result<Derivation, String> {
     let (n1, n2) = match j { Judgment::Comparison { n1, n2 } => (n1, n2), _ => unreachable!() };
     if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
