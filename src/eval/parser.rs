@@ -230,7 +230,7 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
     fn parse_cons_tail(&mut self, lhs: Expr, paren: bool) -> Expr {
         if let Some(Token::ColonColon) = self.peek() {
             self.advance();
-            let rhs = self.parse_cons_prec(false); // ✅ right-recursive to ensure right-associativity
+            let rhs = self.parse_cons_prec(false);
             Expr::BinOp(Box::new(lhs), Op::Cons, Box::new(rhs), paren)
         } else {
             lhs

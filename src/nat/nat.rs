@@ -1,5 +1,5 @@
 use std::fmt;
-use crate::nat::ast::{ArithmeticOp, Derivation, Judgment, ComparisonMode, Nat};
+use crate::nat::ast::{ArithmeticOp, Derivation, Judgment, ComparisonMode, Nat, Expr};
 
 impl fmt::Display for Derivation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -37,6 +37,17 @@ impl fmt::Display for Judgment {
             Judgment::Comparison { n1, n2 } => {
                 write!(f, "{} is less than {}", n1, n2)
             }
+            Judgment::Evaluation { exp , n } => write!(f, "{} evalto {}", exp, n),
+        }
+    }
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::N(n) => write!(f, "{}", n),
+            Expr::Plus(e1, e2) => write!(f, "({} + {})", e1, e2),
+            Expr::Times(e1, e2) => write!(f, "({} * {})", e1, e2),
         }
     }
 }
@@ -55,7 +66,16 @@ pub fn derive(j: &Judgment, mode: Option<ComparisonMode>) -> Result<Derivation, 
                 Some(ComparisonMode::V3) => derive_compare_v3(j),
                 None => Err("Cannot prove comparison judgment: No comparison mode was specified. Try adding CompareNat1, CompareNat2, or CompareNat3 as the first argument.".to_string()),
             }
-        }
+        },
+        Judgment::Evaluation { exp, n } => derive_eval(exp, n),
+    }
+}
+
+fn eval_expr(exp: &Expr) -> Nat {
+    match exp {
+        Expr::N(n) => n.clone(),
+        Expr::Plus(e1, e2) => eval_expr(e1).plus(&eval_expr(e2)),
+        Expr::Times(e1, e2) => eval_expr(e1).times(&eval_expr(e2)),
     }
 }
 
@@ -73,11 +93,11 @@ fn derive_plus(j: &Judgment) -> Result<Derivation, String> {
             if n2 == n3 {
                 Ok(Derivation {
                     conclusion,
-                    rule: "P-ZERO".to_string(),
+                    rule: "P-Zero".to_string(),
                     premises: vec![],
                 })
             } else {
-                Err(format!("Cannot prove with P-ZERO, since {} != {}", n2, n3))
+                Err(format!("Cannot prove with P-Zero, since {} != {}", n2, n3))
             }
         }
         // Rule P-SUCC: S(n1) plus n2 is S(n)
@@ -92,11 +112,11 @@ fn derive_plus(j: &Judgment) -> Result<Derivation, String> {
                 let premise_deriv = derive_plus(&premise_j)?;
                 Ok(Derivation {
                     conclusion,
-                    rule: "P-SUCC".to_string(),
+                    rule: "P-Succ".to_string(),
                     premises: vec![premise_deriv],
                 })
             } else {
-                Err(format!("Cannot apply P-SUCC, result {} is not a Successor", n3))
+                Err(format!("Cannot apply P-Succ, result {} is not a Successor", n3))
             }
         }
     }
@@ -116,7 +136,7 @@ fn derive_times(j: &Judgment) -> Result<Derivation, String> {
             if let Nat::Z = n3 {
                 Ok(Derivation {
                     conclusion,
-                    rule: "T-ZERO".to_string(),
+                    rule: "T-Zero".to_string(),
                     premises: vec![],
                 })
             } else {
@@ -144,7 +164,7 @@ fn derive_times(j: &Judgment) -> Result<Derivation, String> {
 
             Ok(Derivation {
                 conclusion,
-                rule: "T-SUCC".to_string(),
+                rule: "T-Succ".to_string(),
                 premises: vec![prem1_deriv, prem2_deriv],
             })
         }
@@ -204,5 +224,40 @@ fn derive_compare_v3(j: &Judgment) -> Result<Derivation, String> {
         Ok(Derivation { conclusion, rule: "L-SuccR".to_string(), premises: vec![premise_deriv] })
     } else {
         Err(format!("Could not apply L-Succ or L-SuccR to prove '{}'", j))
+    }
+}
+
+fn derive_eval(exp: &Expr, n: &Nat) -> Result<Derivation, String> {
+    // Correctness check
+    if eval_expr(exp) != *n {
+        return Err(format!("The judgment '{}' is false.", Judgment::Evaluation{exp: exp.clone(), n: n.clone()}));
+    }
+
+    let conclusion = format!("{}", Judgment::Evaluation{exp: exp.clone(), n: n.clone()});
+    match exp {
+        // Now matches on Expr variants
+        Expr::N(_) => Ok(Derivation {
+            conclusion,
+            rule: "E-Const".to_string(),
+            premises: vec![],
+        }),
+        Expr::Plus(e1, e2) => {
+            let n1 = eval_expr(e1);
+            let n2 = eval_expr(e2);
+            let premise1 = derive_eval(e1, &n1)?;
+            let premise2 = derive_eval(e2, &n2)?;
+            let premise3_j = Judgment::Arithmetic { op: ArithmeticOp::Plus, n1, n2, n3: n.clone() };
+            let premise3 = derive_plus(&premise3_j)?;
+            Ok(Derivation { conclusion, rule: "E-Plus".to_string(), premises: vec![premise1, premise2, premise3] })
+        }
+        Expr::Times(e1, e2) => {
+            let n1 = eval_expr(e1);
+            let n2 = eval_expr(e2);
+            let premise1 = derive_eval(e1, &n1)?;
+            let premise2 = derive_eval(e2, &n2)?;
+            let premise3_j = Judgment::Arithmetic { op: ArithmeticOp::Times, n1, n2, n3: n.clone() };
+            let premise3 = derive_times(&premise3_j)?;
+            Ok(Derivation { conclusion, rule: "E-Times".to_string(), premises: vec![premise1, premise2, premise3] })
+        }
     }
 }

@@ -1,4 +1,4 @@
-use crate::nat::ast::{Nat, Judgment, ArithmeticOp};
+use crate::nat::ast::{Nat, Expr, Judgment, ArithmeticOp};
 use crate::nat::token::Token;
 
 pub struct Parser {
@@ -28,7 +28,7 @@ impl Parser {
                 Ok(())
             }
             Some(token) => Err(format!("Expected token {:?}, found {:?}", expected, token)),
-            None => Err(format!("Expected token {:?}, found end of input", expected)),
+            None => Err(format!("Expected token {:?}, but found the end of input.", expected)),
         }
     }
 
@@ -39,37 +39,93 @@ impl Parser {
                 Ok(Nat::Z)
             }
             Some(Token::S) => {
-                self.advance(); // Consume 'S'
+                self.advance();
                 self.expect(Token::LParen)?;
-                let inner_nat = self.parse_nat()?;
+                let inner = self.parse_nat()?;
                 self.expect(Token::RParen)?;
-                Ok(Nat::S(Box::new(inner_nat)))
+                Ok(Nat::S(Box::new(inner)))
             }
-            Some(token) => Err(format!("Unexpected token while parsing Nat: {:?}", token)),
-            None => Err("Unexpected end of input while parsing Nat".to_string()),
+            _ => Err("Expected 'Z' or 'S' to start a Nat expression".to_string()),
         }
     }
 
-    pub fn parse_judgment(&mut self) -> Result<Judgment, String> {
-        let n1 = self.parse_nat()?;
-        
+    // NEW: Parses factors, the highest-precedence items (constants and parentheses).
+    fn parse_factor(&mut self) -> Result<Expr, String> {
         match self.peek() {
-            Some(Token::Plus) | Some(Token::Times) => {
-                let op = if *self.peek().unwrap() == Token::Plus { ArithmeticOp::Plus } else { ArithmeticOp::Times };
+            Some(Token::LParen) => {
                 self.advance();
-                let n2 = self.parse_nat()?;
-                self.expect(Token::Is)?;
-                let n3 = self.parse_nat()?;
-                Ok(Judgment::Arithmetic { op, n1, n2, n3 })
+                let exp = self.parse_expr()?; // Start a new expression inside parens
+                self.expect(Token::RParen)?;
+                Ok(exp)
             }
-            Some(Token::Is) => {
+            Some(Token::Z) | Some(Token::S) => Ok(Expr::N(self.parse_nat()?)),
+            _ => Err("Expected a Nat value or a parenthesized expression".to_string()),
+        }
+    }
+
+    // NEW: Parses terms, which are sequences of factors multiplied together.
+    fn parse_term(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_factor()?;
+        while let Some(Token::TimesOp) = self.peek() {
+            self.advance(); // Consume '*'
+            let rhs = self.parse_factor()?;
+            lhs = Expr::Times(Box::new(lhs), Box::new(rhs));
+        }
+        Ok(lhs)
+    }
+
+    // NEW: Parses expressions, which are sequences of terms added together.
+    fn parse_expr(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_term()?;
+        while let Some(Token::PlusOp) = self.peek() {
+            self.advance(); // Consume '+'
+            let rhs = self.parse_term()?;
+            lhs = Expr::Plus(Box::new(lhs), Box::new(rhs));
+        }
+        Ok(lhs)
+    }
+
+    /// The main parser entry point, updated to call the new top-level `parse_expr`.
+    pub fn parse_judgment(&mut self) -> Result<Judgment, String> {
+        if self.peek().is_none() {
+            return Err("Cannot parse an empty input.".to_string());
+        }
+
+        // The entry point for parsing is now parse_expr, which respects precedence.
+        let lhs_expr = self.parse_expr()?;
+
+        match self.peek() {
+            Some(Token::Evalto) => {
                 self.advance();
-                self.expect(Token::Less)?;
-                self.expect(Token::Than)?;
-                let n2 = self.parse_nat()?;
-                Ok(Judgment::Comparison { n1, n2 })
+                let n = self.parse_nat()?;
+                Ok(Judgment::Evaluation { exp: lhs_expr, n })
             }
-            _ => Err("Expected 'plus', 'times', or 'is' after first Nat".to_string()),
+            _ => {
+                let n1 = match lhs_expr {
+                    Expr::N(n) => n,
+                    _ => return Err("Expected a single Nat value on the left side for 'plus', 'times', or 'is less than' judgments.".to_string()),
+                };
+
+                match self.peek() {
+                    Some(Token::Plus) | Some(Token::Times) => {
+                        let op = if *self.peek().unwrap() == Token::Plus { ArithmeticOp::Plus } else { ArithmeticOp::Times };
+                        self.advance();
+                        let n2 = self.parse_nat()?;
+                        self.expect(Token::Is)?;
+                        let n3 = self.parse_nat()?;
+                        Ok(Judgment::Arithmetic { op, n1, n2, n3 })
+                    }
+                    Some(Token::Is) => {
+                        self.advance();
+                        self.expect(Token::Less)?;
+                        self.expect(Token::Than)?;
+                        let n2 = self.parse_nat()?;
+                        Ok(Judgment::Comparison { n1, n2 })
+                    }
+                    None => Err("Incomplete judgment. Expected 'plus', 'times', 'is', or 'evalto'.".to_string()),
+                    Some(token) => Err(format!("Unexpected token '{:?}' following a Nat value.", token)),
+                }
+            }
         }
     }
 }

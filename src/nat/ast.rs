@@ -12,6 +12,13 @@ pub enum Nat {
     S(Box<Nat>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expr {
+    N(Nat),
+    Plus(Box<Expr>, Box<Expr>),
+    Times(Box<Expr>, Box<Expr>),
+}
+
 // Helper methods to perform Peano arithmetic.
 // The derivator uses these to find intermediate values for premises.
 impl Nat {
@@ -65,6 +72,10 @@ pub enum Judgment {
     Comparison {
         n1: Nat,
         n2: Nat,
+    },
+    Evaluation { 
+        exp: Expr, 
+        n: Nat 
     },
 }
 
