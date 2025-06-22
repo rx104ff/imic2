@@ -1,0 +1,6 @@
+---
+source: tests/nat_tests.rs
+expression: result
+---
+Z times S(S(Z)) is Z by T-Zero {
+};

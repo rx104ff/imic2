@@ -1,0 +1,6 @@
+---
+source: tests/nat_tests.rs
+expression: result
+---
+S(S(Z)) is less than S(S(S(Z))) by L-Succ {
+};

@@ -12,3 +12,6 @@ path = "src/bin/eval.rs"
 [[bin]]
 name = "nat"
 path = "src/bin/nat.rs"
+
+[dev-dependencies]
+insta = { version = "1.39.0", features = ["yaml"] }
