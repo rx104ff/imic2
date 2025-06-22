@@ -1,4 +1,4 @@
-use crate::nat::ast::{Nat, Expr, Judgment, ArithmeticOp};
+use crate::nat::ast::{Nat, Expr, Judgment, ArithmeticOp, ReductionType};
 use crate::nat::token::Token;
 
 pub struct Parser {
@@ -49,7 +49,6 @@ impl Parser {
         }
     }
 
-    // NEW: Parses factors, the highest-precedence items (constants and parentheses).
     fn parse_factor(&mut self) -> Result<Expr, String> {
         match self.peek() {
             Some(Token::LParen) => {
@@ -63,7 +62,6 @@ impl Parser {
         }
     }
 
-    // NEW: Parses terms, which are sequences of factors multiplied together.
     fn parse_term(&mut self) -> Result<Expr, String> {
         let mut lhs = self.parse_factor()?;
         while let Some(Token::TimesOp) = self.peek() {
@@ -74,8 +72,7 @@ impl Parser {
         Ok(lhs)
     }
 
-    // NEW: Parses expressions, which are sequences of terms added together.
-    fn parse_expr(&mut self) -> Result<Expr, String> {
+    pub fn parse_expr(&mut self) -> Result<Expr, String> {
         let mut lhs = self.parse_term()?;
         while let Some(Token::PlusOp) = self.peek() {
             self.advance(); // Consume '+'
@@ -91,15 +88,32 @@ impl Parser {
             return Err("Cannot parse an empty input.".to_string());
         }
 
-        // The entry point for parsing is now parse_expr, which respects precedence.
+        // The entry point for parsing is always to parse the left-hand side expression first.
         let lhs_expr = self.parse_expr()?;
 
+        // Now, we look at the next token to determine the type of judgment.
         match self.peek() {
+            // Case 1: Evaluation `e evalto n`
             Some(Token::Evalto) => {
                 self.advance();
                 let n = self.parse_nat()?;
                 Ok(Judgment::Evaluation { exp: lhs_expr, n })
             }
+            // Case 2: Reduction `e1 ---> e2`
+            Some(Token::Arrow) | Some(Token::ArrowD) | Some(Token::ArrowStar) => {
+                let r_type = match self.peek().unwrap() {
+                    Token::Arrow => ReductionType::Single,
+                    Token::ArrowD => ReductionType::Direct,
+                    Token::ArrowStar => ReductionType::Multi,
+                    _ => unreachable!(),
+                };
+                self.advance();
+                // The right-hand side of a reduction is also a full expression.
+                let e2 = self.parse_expr()?;
+                Ok(Judgment::Reduction { r_type, e1: lhs_expr, e2 })
+            }
+            // Case 3: Must be an Arithmetic or Comparison judgment.
+            // For these, the left-hand side must have been a single Nat value.
             _ => {
                 let n1 = match lhs_expr {
                     Expr::N(n) => n,
@@ -122,7 +136,8 @@ impl Parser {
                         let n2 = self.parse_nat()?;
                         Ok(Judgment::Comparison { n1, n2 })
                     }
-                    None => Err("Incomplete judgment. Expected 'plus', 'times', 'is', or 'evalto'.".to_string()),
+                    // Add complete error handling for this inner match
+                    None => Err("Incomplete judgment. Expected 'plus', 'times', or 'is' after Nat value.".to_string()),
                     Some(token) => Err(format!("Unexpected token '{:?}' following a Nat value.", token)),
                 }
             }

@@ -84,15 +84,81 @@ fn test_compare_nat_3_11() {
     let result = run_nat_test(Some(ComparisonMode::V3), "S(S(Z)) is less than S(S(S(Z)))");
     assert_snapshot!(result);
 }
-// #[test]
-// fn test_compare_v2_success() {
-//     let result = run_nat_test(Some(ComparisonMode::V2), "S(Z) is less than S(S(Z))");
-//     assert_snapshot!(result);
-// }
 
-// #[test]
-// fn test_invalid_judgment_error() {
-//     let result = run_nat_test(Some(ComparisonMode::V1), "S(Z) is less than Z");
-//     // You can snapshot error messages too!
-//     assert_snapshot!(result);
-// }
+#[test]
+fn test_compare_nat_3_12() {
+    let result = run_nat_test(Some(ComparisonMode::V1), "S(S(Z)) is less than S(S(S(S(S(Z)))))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_compare_nat_3_13() {
+    let result = run_nat_test(Some(ComparisonMode::V2), "S(S(Z)) is less than S(S(S(S(S(Z)))))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_compare_nat_3_14() {
+    let result = run_nat_test(Some(ComparisonMode::V3), "S(S(Z)) is less than S(S(S(S(S(Z)))))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_eval_nat_15() {
+    let result = run_nat_test(None, "Z + S(S(Z)) evalto S(S(Z))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_eval_nat_16() {
+    let result = run_nat_test(None, "S(S(Z)) + Z evalto S(S(Z))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_eval_nat_17() {
+    let result = run_nat_test(None, "S(Z) + S(Z) + S(Z) evalto S(S(S(Z)))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_eval_nat_18() {
+    let result = run_nat_test(None, "S(S(S(Z))) + S(S(Z)) * S(Z) evalto S(S(S(S(S(Z)))))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_eval_nat_19() {
+    let result = run_nat_test(None, "(S(S(Z)) + S(S(Z))) * Z evalto Z");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_eval_nat_20() {
+    let result = run_nat_test(None, "Z * (S(S(Z)) + S(S(Z))) evalto Z");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_reduce_nat_21() {
+    let result = run_nat_test(None, "Z + S(S(Z)) -*-> S(S(Z))");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_reduce_nat_22() {
+    let result = run_nat_test(None, "S(Z) * S(Z) + S(Z) * S(Z) -d-> S(Z) + S(Z) * S(Z)");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_reduce_nat_23() {
+    let result = run_nat_test(None, "S(Z) * S(Z) + S(Z) * S(Z) ---> S(Z) * S(Z) + S(Z)");
+    assert_snapshot!(result);
+}
+
+#[test]
+fn test_reduce_nat_24() {
+    let result = run_nat_test(None, "S(Z) * S(Z) + S(Z) * S(Z) -*-> S(S(Z))");
+    assert_snapshot!(result);
+}

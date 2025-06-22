@@ -7,6 +7,13 @@ pub enum ComparisonMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReductionType {
+    Single, // →
+    Direct, // →d
+    Multi,  // →*
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Nat {
     Z,
     S(Box<Nat>),
@@ -63,26 +70,16 @@ pub enum Operation {
 // The Judgment is now an enum to handle different statement forms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Judgment {
-    Arithmetic {
-        op: ArithmeticOp,
-        n1: Nat,
-        n2: Nat,
-        n3: Nat,
-    },
-    Comparison {
-        n1: Nat,
-        n2: Nat,
-    },
-    Evaluation { 
-        exp: Expr, 
-        n: Nat 
-    },
+    Arithmetic { op: ArithmeticOp, n1: Nat, n2: Nat, n3: Nat },
+    Comparison { n1: Nat, n2: Nat },
+    Evaluation { exp: Expr, n: Nat },
+    Reduction { r_type: ReductionType, e1: Expr, e2: Expr },
 }
 
 // This Derivation struct is now defined here as you specified.
 #[derive(Debug)]
 pub struct Derivation {
-    pub conclusion: String,
+    pub conclusion: Judgment,
     pub rule: String,
     pub premises: Vec<Derivation>,
 }

@@ -12,6 +12,9 @@ pub enum Token {
     Less,
     Than,
     Evalto,
+    Arrow,     // --->;
+    ArrowD,    // -d->;
+    ArrowStar, // -*->
 }
 
 pub fn tokenize(input: &str) -> Vec<Token> {
@@ -23,6 +26,34 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             ')' => tokens.push(Token::RParen),
             '+' => tokens.push(Token::PlusOp),
             '*' => tokens.push(Token::TimesOp),
+            
+            // --- NEW LOGIC TO HANDLE REDUCTION SYMBOLS ---
+            '-' => {
+                // This logic peeks ahead to see which arrow symbol it is.
+                match chars.peek() {
+                    Some('d') => {
+                        chars.next(); // consume 'd'
+                        if chars.next() == Some('-') && chars.next() == Some('>') {
+                            tokens.push(Token::ArrowD);
+                        } else { panic!("Invalid token starting with -d"); }
+                    },
+                    Some('*') => {
+                        chars.next(); // consume '*'
+                        if chars.next() == Some('-') && chars.next() == Some('>') {
+                            tokens.push(Token::ArrowStar);
+                        } else { panic!("Invalid token starting with -*"); }
+                    },
+                    Some('-') => {
+                        chars.next(); // consume '-'
+                        if chars.next() == Some('-') && chars.next() == Some('>') {
+                            tokens.push(Token::Arrow);
+                        } else { panic!("Invalid token starting with --"); }
+                    },
+                    _ => panic!("Unexpected character after '-'"),
+                }
+            }
+            // --- End of new logic ---
+
             c if c.is_whitespace() => (),
             c if c.is_alphabetic() => {
                 let mut keyword = String::new();
