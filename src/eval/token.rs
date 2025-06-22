@@ -10,6 +10,7 @@ pub enum Token {
     With,
     Fun,
     Rec,
+    Lambda,
     Arrow,
     Equals,
     Bar,
@@ -23,10 +24,11 @@ pub enum Token {
     Ident(String),
     LParen,
     RParen,
-    Nil,  
+    Nil,
     LBracket,
     RBracket,
-    Comma,     // <-- Added here
+    Comma,
+    Evalto, // <-- Added
     EOF,
 }
 
@@ -61,6 +63,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     "rec" => Token::Rec,
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
+                    "evalto" => Token::Evalto, // <-- Added
                     _ => Token::Ident(ident),
                 };
                 tokens.push(token);
@@ -138,7 +141,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             }
             ',' => {
                 chars.next();
-                tokens.push(Token::Comma); // <-- Added here
+                tokens.push(Token::Comma);
             }
             _ => {
                 panic!("Unexpected character: {}", ch);

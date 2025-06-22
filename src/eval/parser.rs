@@ -64,6 +64,11 @@ impl Parser {
         self.expect(&Token::Bar);
         self.expect(&Token::Minus);
         let expr = self.parse_expr();
+        if let Some(Token::Evalto) = self.peek() {
+            while self.peek().is_some() && self.peek() != Some(&Token::EOF) {
+                self.advance();
+            }
+        }
         (env, expr)
     }
 
