@@ -1,0 +1,6 @@
+---
+source: tests/eval_tests.rs
+expression: "&result"
+---
+|- fun x -> x + 1 evalto ()[fun x -> x + 1] by E-Fun {
+};

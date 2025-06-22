@@ -18,7 +18,7 @@ impl Derivation {
 
         writeln!(
             f,
-            " {}{}{} evalto {} by {} {{",
+            "{}{}{} evalto {} by {} {{",
             indent_str,
             format_env(&self.env, self.version),
             self.expr.to_ml4_string(),

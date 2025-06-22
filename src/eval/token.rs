@@ -61,8 +61,8 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     "with" => Token::With,
                     "fun" => Token::Fun,
                     "rec" => Token::Rec,
-                    "true" => Token::Bool(true),
-                    "false" => Token::Bool(false),
+                    "true" | "True" => Token::Bool(true),
+                    "false" | "False" => Token::Bool(false),
                     "evalto" => Token::Evalto, // <-- Added
                     _ => Token::Ident(ident),
                 };

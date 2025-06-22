@@ -119,13 +119,9 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
                 self.advance();
                 Value::Int(n)
             }
-            Some(Token::Ident(ref name)) if name == "True" => {
+            Some(Token::Bool(b)) => {
                 self.advance();
-                Value::Bool(true)
-            }
-            Some(Token::Ident(ref name)) if name == "False" => {
-                self.advance();
-                Value::Bool(false)
+                Value::Bool(b)
             }
             Some(Token::LParen) => {
                 self.advance();
