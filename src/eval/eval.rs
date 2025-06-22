@@ -380,7 +380,7 @@ pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Derivation {
                 _ => panic!("Condition must evaluate to a boolean"),
             }
         }
-        Expr::Let(x, e1, e2, is_paren) => {
+        Expr::Let(x, e1, e2, _) => {
             let d1 = derive(env, e1, version);
             let mut new_env = (**env).clone();
             new_env.push((x.clone(), d1.result.clone()));
@@ -483,7 +483,7 @@ pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Derivation {
             }
         },
 
-        Expr::Match(e, e_nil, x, y, e_cons, is_paren) => {
+        Expr::Match(e, e_nil, x, y, e_cons, _) => {
             let d_expr = derive(env, e, version);
             match d_expr.result.clone() {
                 Value::Nil => {
@@ -497,7 +497,7 @@ pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Derivation {
                         version,
                     }
                 }
-                Value::Cons(v1, v2, is_paren) => {
+                Value::Cons(v1, v2, _) => {
                     let mut new_env = (**env).clone();
                     new_env.push((x.clone(), *v1));
                     new_env.push((y.clone(), *v2));
@@ -514,7 +514,6 @@ pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Derivation {
                 }
                 _ => panic!("Cannot match on non-list value"),
             }
-        }
-        _ => unimplemented!("Derivation not yet handled for this expression form")
+        },
     }
 } 
