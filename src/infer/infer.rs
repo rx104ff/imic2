@@ -32,6 +32,57 @@ pub fn infer_judgment(judgment: &Judgment) -> Result<Derivation, String> {
     Ok(derivation)
 }
 
+/// The main public entry point for the type system.
+/// It takes a full judgment `Γ ⊢ e : τ` and kicks off the type checking process.
+pub fn check_judgment(judgment: &Judgment) -> Result<Derivation, String> {
+    let mut ctx = InferContext {
+        sub: HashMap::new(),
+        env: judgment.env.clone(),
+    };
+    // Start the process by checking the expression against the expected type from the judgment.
+    let mut derivation = check_expr(&mut ctx, &judgment.expr, &judgment.ty)?;
+
+    // Apply the final substitutions to the entire derivation tree for a clean output.
+    apply_sub_to_deriv(&mut derivation, &ctx.sub);
+
+    default_vars_in_deriv(&mut derivation);
+     
+    Ok(derivation)
+}
+
+/// The core recursive function of the type system.
+/// It verifies that expression `e` has `expected_ty` in the current context.
+fn check_expr(ctx: &mut InferContext, e: &Expr, expected_ty: &Type) -> Result<Derivation, String> {
+    // For `fun`, we don't infer. We use the expected type to drive the checking.
+    if let Expr::Fun(param, body, _) = e {
+        if let Type::Fun(ty1, ty2) = expected_ty {
+            let mut new_env = ctx.env.clone();
+            new_env.push((param.clone(), *ty1.clone()));
+            let mut body_ctx = InferContext { sub: ctx.sub.clone(), env: new_env };
+            // Recursively check if the body has the expected return type.
+            let premise = check_expr(&mut body_ctx, body, ty2)?;
+            ctx.sub = body_ctx.sub; // Propagate substitutions
+            return Ok(Derivation {
+                env: ctx.env.clone(), expr: e.clone(), ty: expected_ty.clone(),
+                rule: "T-Fun".to_string(), premises: vec![premise],
+            });
+        } else {
+            return Err(format!("Type mismatch. Expression is a function, but expected type is {:?}.", expected_ty));
+        }
+    }
+
+    // For all other expressions, we infer their type first...
+    let mut inferred_derivation = infer_expr(ctx, e)?;
+    
+    // ...and then unify the inferred type with the one we expected.
+    let final_sub = unify(&inferred_derivation.ty, expected_ty, &ctx.sub)?;
+    ctx.sub = final_sub;
+
+    // Update the derivation with the now more specific type.
+    inferred_derivation.ty = apply_sub(expected_ty, &ctx.sub);
+    Ok(inferred_derivation)
+}
+
 /// Helper function to apply substitutions to a type environment.
 fn apply_sub_to_env(env: &TypeEnv, sub: &Substitution) -> TypeEnv {
     env.iter()
@@ -240,5 +291,24 @@ fn infer_expr(ctx: &mut InferContext, e: &Expr) -> Result<Derivation, String> {
                 rule: "T-Match".to_string(), premises: vec![d1, d2, d3],
             })
         }
+    }
+}
+
+/// NEW: Helper function to default any remaining Type::Var to Type::Int.
+fn default_unconstrained_vars(t: &Type) -> Type {
+    match t {
+        Type::Var(_) => Type::Int, // Default hanging type variables to int
+        Type::Fun(p, r) => Type::Fun(Box::new(default_unconstrained_vars(p)), Box::new(default_unconstrained_vars(r))),
+        Type::List(inner) => Type::List(Box::new(default_unconstrained_vars(inner))),
+        _ => t.clone(), // Concrete types (Int, Bool) remain unchanged.
+    }
+}
+
+/// NEW: Recursively applies the defaulting logic to the entire derivation tree.
+fn default_vars_in_deriv(deriv: &mut Derivation) {
+    deriv.ty = default_unconstrained_vars(&deriv.ty);
+    deriv.env = deriv.env.iter().map(|(v, t)| (v.clone(), default_unconstrained_vars(t))).collect();
+    for premise in &mut deriv.premises {
+        default_vars_in_deriv(premise);
     }
 }

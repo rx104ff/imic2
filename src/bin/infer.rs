@@ -28,7 +28,7 @@ fn main() {
 
     // 3. Run the type checker on the parsed judgment.
     // The `judgment` object is now correctly instantiated and can be passed directly.
-    match infer::infer::infer_judgment(&judgment) {
+    match infer::infer::check_judgment(&judgment) {
         Ok(derivation) => {
             println!("{}", derivation);
         },
