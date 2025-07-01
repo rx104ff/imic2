@@ -16,13 +16,11 @@ pub fn unify(t1: &Type, t2: &Type, sub: &Substitution) -> Result<Substitution, S
         (Type::Int, Type::Int) => Ok(sub.clone()),
         (Type::Bool, Type::Bool) => Ok(sub.clone()),
         (Type::Fun(p1, r1), Type::Fun(p2, r2)) => {
-            // CORRECTED: Pass references to the inner types, not the boxes themselves.
             let sub1 = unify(p1.as_ref(), p2.as_ref(), sub)?;
             let sub2 = unify(r1.as_ref(), r2.as_ref(), &sub1)?;
             Ok(sub2)
         }
         (Type::List(t1), Type::List(t2)) => {
-            // CORRECTED: Pass references to the inner types.
             unify(t1.as_ref(), t2.as_ref(), sub)
         }
         (t1, t2) => Err(format!("Type mismatch: cannot unify {:?} with {:?}", t1, t2)),

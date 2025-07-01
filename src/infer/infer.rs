@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::infer::ast::{Expr, Op, Var, Type, TypeVar, TypeEnv, Judgment};
+use crate::infer::ast::{Expr, Op, Type, TypeVar, TypeEnv, Judgment};
 use crate::infer::proof::Derivation;
 use crate::infer::unification::{unify, apply_sub, Substitution};
 
@@ -53,7 +53,6 @@ pub fn check_judgment(judgment: &Judgment) -> Result<Derivation, String> {
 /// The core recursive function of the type system.
 /// It verifies that expression `e` has `expected_ty` in the current context.
 fn check_expr(ctx: &mut InferContext, e: &Expr, expected_ty: &Type) -> Result<Derivation, String> {
-    // For `fun`, we don't infer. We use the expected type to drive the checking.
     if let Expr::Fun(param, body, _) = e {
         if let Type::Fun(ty1, ty2) = expected_ty {
             let mut new_env = ctx.env.clone();
@@ -94,7 +93,6 @@ fn apply_sub_to_env(env: &TypeEnv, sub: &Substitution) -> TypeEnv {
 fn apply_sub_to_deriv(deriv: &mut Derivation, sub: &Substitution) {
     // Apply substitutions to the conclusion type of the current derivation step.
     deriv.ty = apply_sub(&deriv.ty, sub);
-    // CORRECTED: Also apply substitutions to the environment of the current step.
     deriv.env = apply_sub_to_env(&deriv.env, sub);
 
     // Recursively apply to all premises.
@@ -294,7 +292,6 @@ fn infer_expr(ctx: &mut InferContext, e: &Expr) -> Result<Derivation, String> {
     }
 }
 
-/// NEW: Helper function to default any remaining Type::Var to Type::Int.
 fn default_unconstrained_vars(t: &Type) -> Type {
     match t {
         Type::Var(_) => Type::Int, // Default hanging type variables to int
@@ -304,7 +301,6 @@ fn default_unconstrained_vars(t: &Type) -> Type {
     }
 }
 
-/// NEW: Recursively applies the defaulting logic to the entire derivation tree.
 fn default_vars_in_deriv(deriv: &mut Derivation) {
     deriv.ty = default_unconstrained_vars(&deriv.ty);
     deriv.env = deriv.env.iter().map(|(v, t)| (v.clone(), default_unconstrained_vars(t))).collect();

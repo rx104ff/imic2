@@ -19,7 +19,7 @@ pub enum Token {
     Star,       // *
     Lt,         // <
     Arrow,      // ->
-    Colon,      // :      <-- NEW for type annotations
+    Colon,      // :
     ColonColon, // ::
     Comma,      // ,
     Turnstile,  // |-
