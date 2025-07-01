@@ -1,5 +1,4 @@
 use std::env;
-// The module is named `type`, so we use `r#type` to avoid conflict with the keyword.
 use imic2::infer; 
 
 fn main() {
