@@ -27,7 +27,6 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             '+' => tokens.push(Token::PlusOp),
             '*' => tokens.push(Token::TimesOp),
             
-            // --- NEW LOGIC TO HANDLE REDUCTION SYMBOLS ---
             '-' => {
                 // This logic peeks ahead to see which arrow symbol it is.
                 match chars.peek() {
@@ -52,7 +51,6 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     _ => panic!("Unexpected character after '-'"),
                 }
             }
-            // --- End of new logic ---
 
             c if c.is_whitespace() => (),
             c if c.is_alphabetic() => {

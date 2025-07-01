@@ -61,8 +61,7 @@ impl Parser {
         } else {
             Rc::new(vec![])
         };
-        self.expect(&Token::Bar);
-        self.expect(&Token::Minus);
+        self.expect(&Token::Turnstile);
         let expr = self.parse_expr();
         if let Some(Token::Evalto) = self.peek() {
             while self.peek().is_some() && self.peek() != Some(&Token::EOF) {

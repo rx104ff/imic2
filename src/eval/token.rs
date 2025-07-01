@@ -1,4 +1,3 @@
-// src/token.rs
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Let,
@@ -28,7 +27,8 @@ pub enum Token {
     LBracket,
     RBracket,
     Comma,
-    Evalto, // <-- Added
+    Evalto,
+    Turnstile, // <-- Added
     EOF,
 }
 
@@ -63,7 +63,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     "rec" => Token::Rec,
                     "true" | "True" => Token::Bool(true),
                     "false" | "False" => Token::Bool(false),
-                    "evalto" => Token::Evalto, // <-- Added
+                    "evalto" => Token::Evalto,
                     _ => Token::Ident(ident),
                 };
                 tokens.push(token);
@@ -85,8 +85,13 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 tokens.push(Token::Equals);
             }
             '|' => {
-                chars.next();
-                tokens.push(Token::Bar);
+                chars.next(); // consume '|'
+                if chars.peek() == Some(&'-') {
+                    chars.next(); // consume '-'
+                    tokens.push(Token::Turnstile);
+                } else {
+                    tokens.push(Token::Bar);
+                }
             }
             '-' => {
                 chars.next();

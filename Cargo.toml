@@ -13,5 +13,9 @@ path = "src/bin/eval.rs"
 name = "nat"
 path = "src/bin/nat.rs"
 
+[[bin]]
+name = "infer"
+path = "src/bin/infer.rs"
+
 [dev-dependencies]
 insta = { version = "1.39.0", features = ["yaml"] }

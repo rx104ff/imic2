@@ -1,0 +1,10 @@
+---
+source: tests/infer_tests.rs
+expression: "&result"
+---
+|- 3 + 5 : int by T-Plus {
+    |- 3 : int by T-Int {
+    };
+    |- 5 : int by T-Int {
+    };
+};
