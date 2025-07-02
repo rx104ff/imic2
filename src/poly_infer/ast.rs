@@ -27,15 +27,18 @@ pub enum Expr {
     Match(Box<Expr>, Box<Expr>, Var, Var, Box<Expr>, bool),
 }
 
-// --- Types, Type Variables, and Type Schemes ---
+static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
 
+// CORRECTED: This counter is ONLY for generating predictable names ('a, 'b, 'c...)
+// for the inferrer's internal "fresh" variables. It is thread-local and resettable.
 thread_local! {
-    static NEXT_TYPE_VAR_ID: Cell<usize> = Cell::new(0);
+    static NEXT_FRESH_VAR_NAME_ID: Cell<usize> = Cell::new(0);
 }
 
-// NEW: Public function to reset the counter for deterministic tests.
-pub fn reset_type_var_counter() {
-    NEXT_TYPE_VAR_ID.with(|counter| {
+/// Resets the counter used for naming fresh type variables.
+/// This MUST be called before each test run to ensure deterministic output.
+pub fn reset_fresh_var_name_counter() {
+    NEXT_FRESH_VAR_NAME_ID.with(|counter| {
         counter.set(0);
     });
 }
@@ -43,23 +46,20 @@ pub fn reset_type_var_counter() {
 impl TypeVar {
     /// Creates a fresh type variable for internal use by the inferrer.
     pub fn new() -> Self {
-        let id = NEXT_TYPE_VAR_ID.with(|counter| {
+        let id = NEXT_UNIQUE_ID.fetch_add(1, Ordering::SeqCst);
+        let name_id = NEXT_FRESH_VAR_NAME_ID.with(|counter| {
             let id = counter.get();
             counter.set(id + 1);
             id
         });
-        let name = format!("'{}", ((id % 26) as u8 + b'a') as char);
+        let name = format!("'{}", ((name_id % 26) as u8 + b'a') as char);
         TypeVar { id, name }
     }
 
-
     /// Creates a type variable from a name found in the source code.
+    /// It gets a globally unique ID but preserves its original name for display.
     pub fn new_from_name(name: String) -> Self {
-        let id = NEXT_TYPE_VAR_ID.with(|counter| {
-            let id = counter.get();
-            counter.set(id + 1);
-            id
-        });
+        let id = NEXT_UNIQUE_ID.fetch_add(1, Ordering::SeqCst);
         TypeVar { id, name: format!("'{}", name) }
     }
 }
