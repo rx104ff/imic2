@@ -1,0 +1,66 @@
+---
+source: tests/poly_infer_test.rs
+expression: "&result"
+---
+|- let compose = fun f -> fun g -> fun x -> f (g x) in let f = fun x -> if x then 3 else 4 in let g = fun x -> x < 4 in compose f (compose g f) true : int by T-Let {
+    |- fun f -> fun g -> fun x -> f (g x) : (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))) by T-Abs {
+        f: ('d -> 'e) |- fun g -> fun x -> f (g x) : (('c -> 'd) -> ('c -> 'e)) by T-Abs {
+            f: ('d -> 'e), g: ('c -> 'd) |- fun x -> f (g x) : ('c -> 'e) by T-Abs {
+                f: ('d -> 'e), g: ('c -> 'd), x: 'c |- f (g x) : 'e by T-App {
+                    f: ('d -> 'e), g: ('c -> 'd), x: 'c |- f : ('d -> 'e) by T-Var {
+                    };
+                    f: ('d -> 'e), g: ('c -> 'd), x: 'c |- (g x) : 'd by T-App {
+                        f: ('d -> 'e), g: ('c -> 'd), x: 'c |- g : ('c -> 'd) by T-Var {
+                        };
+                        f: ('d -> 'e), g: ('c -> 'd), x: 'c |- x : 'c by T-Var {
+                        };
+                    };
+                };
+            };
+        };
+    };
+    compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))) |- let f = fun x -> if x then 3 else 4 in let g = fun x -> x < 4 in compose f (compose g f) true : int by T-Let {
+        compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))) |- fun x -> if x then 3 else 4 : (bool -> int) by T-Abs {
+            compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), x: bool |- if x then 3 else 4 : int by T-If {
+                compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), x: bool |- x : bool by T-Var {
+                };
+                compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), x: bool |- 3 : int by T-Int {
+                };
+                compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), x: bool |- 4 : int by T-Int {
+                };
+            };
+        };
+        compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int) |- let g = fun x -> x < 4 in compose f (compose g f) true : int by T-Let {
+            compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int) |- fun x -> x < 4 : (int -> bool) by T-Abs {
+                compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), x: int |- x < 4 : bool by T-Lt {
+                    compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), x: int |- x : int by T-Var {
+                    };
+                    compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), x: int |- 4 : int by T-Int {
+                    };
+                };
+            };
+            compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- compose f (compose g f) true : int by T-App {
+                compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- compose f (compose g f) : (bool -> int) by T-App {
+                    compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- compose f : ((bool -> bool) -> (bool -> int)) by T-App {
+                        compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- compose : ((bool -> int) -> ((bool -> bool) -> (bool -> int))) by T-Var {
+                        };
+                        compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- f : (bool -> int) by T-Var {
+                        };
+                    };
+                    compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- (compose g f) : (bool -> bool) by T-App {
+                        compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- compose g : ((bool -> int) -> (bool -> bool)) by T-App {
+                            compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- compose : ((int -> bool) -> ((bool -> int) -> (bool -> bool))) by T-Var {
+                            };
+                            compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- g : (int -> bool) by T-Var {
+                            };
+                        };
+                        compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- f : (bool -> int) by T-Var {
+                        };
+                    };
+                };
+                compose: 'c 'd 'e. (('d -> 'e) -> (('c -> 'd) -> ('c -> 'e))), f: (bool -> int), g: (int -> bool) |- true : bool by T-Bool {
+                };
+            };
+        };
+    };
+};

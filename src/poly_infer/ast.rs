@@ -190,8 +190,12 @@ impl fmt::Display for TyScheme {
         if self.vars.is_empty() {
             write!(f, "{}", self.ty)
         } else {
-            let vars = self.vars.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
-            write!(f, "{}. {}", vars, self.ty)
+            let mut sorted_vars = self.vars.clone();
+            // Sort by the string name to ensure 'a' comes before 'b'.
+            sorted_vars.sort_by(|a, b| a.name.cmp(&b.name));
+
+            let vars_str = sorted_vars.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
+            write!(f, "{}. {}", vars_str, self.ty)
         }
     }
 }

@@ -1,0 +1,44 @@
+---
+source: tests/poly_infer_test.rs
+expression: "&result"
+---
+|- let s = fun f -> fun g -> fun x -> f x (g x) in let k = fun x -> fun y -> x in s k k : ('a -> 'a) by T-Let {
+    |- fun f -> fun g -> fun x -> f x (g x) : (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))) by T-Abs {
+        f: ('d -> ('f -> 'g)) |- fun g -> fun x -> f x (g x) : (('d -> 'f) -> ('d -> 'g)) by T-Abs {
+            f: ('d -> ('f -> 'g)), g: ('d -> 'f) |- fun x -> f x (g x) : ('d -> 'g) by T-Abs {
+                f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- f x (g x) : 'g by T-App {
+                    f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- f x : ('f -> 'g) by T-App {
+                        f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- f : ('d -> ('f -> 'g)) by T-Var {
+                        };
+                        f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- x : 'd by T-Var {
+                        };
+                    };
+                    f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- (g x) : 'f by T-App {
+                        f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- g : ('d -> 'f) by T-Var {
+                        };
+                        f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- x : 'd by T-Var {
+                        };
+                    };
+                };
+            };
+        };
+    };
+    s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))) |- let k = fun x -> fun y -> x in s k k : ('a -> 'a) by T-Let {
+        s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))) |- fun x -> fun y -> x : ('h -> ('i -> 'h)) by T-Abs {
+            s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), x: 'h |- fun y -> x : ('i -> 'h) by T-Abs {
+                s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), x: 'h, y: 'i |- x : 'h by T-Var {
+                };
+            };
+        };
+        s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), k: 'h 'i. ('h -> ('i -> 'h)) |- s k k : ('a -> 'a) by T-App {
+            s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), k: 'h 'i. ('h -> ('i -> 'h)) |- s k : (('a -> ('p -> 'a)) -> ('a -> 'a)) by T-App {
+                s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), k: 'h 'i. ('h -> ('i -> 'h)) |- s : (('a -> (('p -> 'a) -> 'a)) -> (('a -> ('p -> 'a)) -> ('a -> 'a))) by T-Var {
+                };
+                s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), k: 'h 'i. ('h -> ('i -> 'h)) |- k : ('a -> (('p -> 'a) -> 'a)) by T-Var {
+                };
+            };
+            s: 'd 'f 'g. (('d -> ('f -> 'g)) -> (('d -> 'f) -> ('d -> 'g))), k: 'h 'i. ('h -> ('i -> 'h)) |- k : ('a -> ('p -> 'a)) by T-Var {
+            };
+        };
+    };
+};
