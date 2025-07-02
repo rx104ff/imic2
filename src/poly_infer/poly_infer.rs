@@ -17,16 +17,25 @@ impl InferContext {
 /// The main public entry point for the type inferrer.
 /// It takes a judgment `Γ ⊢ e`, infers its type, and returns a full derivation proof.
 pub fn infer_judgment(judgment: &Judgment) -> Result<Derivation, String> {
-    let mut ctx = InferContext {
+        let mut ctx = InferContext {
         sub: HashMap::new(),
     };
-    // 1. Recursively infer the type and build the initial derivation tree.
-    let mut derivation = infer_expr(&mut ctx, &judgment.env, &judgment.expr)?;
+    // 1. Infer the most general type for the expression and get its derivation.
+    let mut inferred_derivation = infer_expr(&mut ctx, &judgment.env, &judgment.expr)?;
 
-    // 2. Apply the final substitutions to the entire derivation tree for a clean output.
-    apply_sub_to_deriv(&mut derivation, &ctx.sub);
+    // 2. Unify the inferred type with the expected type from the judgment.
+    // This creates the necessary substitutions (e.g., mapping a fresh variable like 'c' to a parsed one like 'a').
+    let final_sub = unify(&inferred_derivation.ty, &judgment.ty, &ctx.sub)?;
+    ctx.sub = final_sub;
 
-    Ok(derivation)
+    // 3. Apply the final substitutions to the entire derivation tree.
+    // This will "collapse" all the fresh type variables into their final, concrete forms.
+    apply_sub_to_deriv(&mut inferred_derivation, &ctx.sub);
+    
+    // 4. The top-level conclusion of the proof should now match the original judgment's type.
+    inferred_derivation.ty = judgment.ty.clone();
+    
+    Ok(inferred_derivation)
 }
 
 /// The recursive helper that generates and solves type constraints,
@@ -134,6 +143,36 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
                 rule: "T-LetRec".to_string(), premises: vec![d1, d2],
             })
         }
+        Expr::BinOp(e1, op, e2, _) => {
+            let d1 = infer_expr(ctx, env, e1)?;
+            let t1 = apply_sub(&d1.ty, &ctx.sub);
+            let d2 = infer_expr(ctx, env, e2)?;
+            let t2 = apply_sub(&d2.ty, &ctx.sub);
+            
+            let (expected_t1, expected_t2, result_ty, rule_name) = match op {
+                Op::Add => (Type::Int, Type::Int, Type::Int, "T-Plus"),
+                Op::Sub => (Type::Int, Type::Int, Type::Int, "T-Minus"),
+                Op::Mul => (Type::Int, Type::Int, Type::Int, "T-Times"),
+                Op::Lt => (Type::Int, Type::Int, Type::Bool, "T-Lt"),
+                Op::Cons => {
+                    let elem_type = ctx.new_type_var();
+                    (elem_type.clone(), Type::List(Box::new(elem_type)), t2.clone(), "T-Cons")
+                }
+            };
+            
+            let sub1 = unify(&t1, &expected_t1, &ctx.sub)?;
+            let sub2 = unify(&t2, &expected_t2, &sub1)?;
+            ctx.sub = sub2;
+            
+            let final_type = apply_sub(&result_ty, &ctx.sub);
+            Ok(Derivation {
+                env: env.clone(),
+                expr: e.clone(),
+                ty: final_type,
+                rule: rule_name.to_string(),
+                premises: vec![d1, d2]
+            })
+        }
         Expr::Match(e1, e2, x, y, e3, _) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
@@ -172,8 +211,8 @@ fn generalize(env: &TypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
 
 fn instantiate(scheme: &TyScheme, ctx: &mut InferContext) -> Type {
     let mut fresh_sub = Substitution::new();
-    for &var in &scheme.vars {
-        fresh_sub.insert(var, ctx.new_type_var());
+    for var in &scheme.vars {
+        fresh_sub.insert(var.clone(), ctx.new_type_var());
     }
     apply_sub(&scheme.ty, &fresh_sub)
 }

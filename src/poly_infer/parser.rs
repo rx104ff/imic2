@@ -23,8 +23,6 @@ fn mark_expr_paren(expr: Expr) -> Expr {
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
-    // This map ensures that the same type variable name (e.g., 'a) maps to the same unique ID
-    // within the scope of a single judgment.
     type_var_map: HashMap<String, TypeVar>,
 }
 
@@ -80,21 +78,31 @@ impl Parser {
 
     // Parses a full type scheme, including `forall` quantifiers.
     fn parse_type_scheme(&mut self) -> Result<TyScheme, String> {
-        let mut vars = vec![];
-        // Look for the `forall 'a .` pattern.
+        let mut quantified_vars = vec![];
+        let mut potential_var_names = vec![];
+        let initial_pos = self.pos;
+
+        // 1. Greedily collect all consecutive TypeVar tokens.
         while let Some(Token::TypeVar(name)) = self.peek().cloned() {
-            // This is a simple lookahead. A more robust parser might check for `forall` keyword.
-            if self.tokens.get(self.pos + 1) == Some(&Token::Dot) {
-                self.advance(); // consume type var
-                self.advance(); // consume dot
-                let tv = *self.type_var_map.entry(name).or_insert_with(TypeVar::new);
-                vars.push(tv);
-            } else {
-                break;
-            }
+            potential_var_names.push(name);
+            self.advance();
         }
+
+        // 2. Check if this sequence is followed by a dot.
+        if self.peek() == Some(&Token::Dot) {
+            self.advance(); // Consume the dot.
+            for name in potential_var_names {
+                let tv = self.type_var_map.entry(name.clone()).or_insert_with(|| TypeVar::new_from_name(name)).clone();
+                quantified_vars.push(tv);
+            }
+        } else {
+            // It was not a `forall` expression. Rewind the parser.
+            self.pos = initial_pos;
+        }
+
+        // 3. Parse the main body of the type.
         let ty = self.parse_type()?;
-        Ok(TyScheme { vars, ty })
+        Ok(TyScheme { vars: quantified_vars, ty })
     }
 
     fn parse_type(&mut self) -> Result<Type, String> {
@@ -117,6 +125,11 @@ impl Parser {
                     _ => return Err(format!("Unknown type name '{}'", name)),
                 }
             }
+            Some(Token::TypeVar(name)) => {
+                self.advance();
+            let tv = self.type_var_map.entry(name.clone()).or_insert_with(|| TypeVar::new_from_name(name)).clone();
+                Type::Var(tv)
+            }
             Some(Token::LParen) => {
                 self.advance();
                 let inner_ty = self.parse_type()?;
@@ -133,8 +146,6 @@ impl Parser {
         }
         Ok(ty)
     }
-
-    // --- Full Expression Parsing Logic ---
 
     /// The main entrypoint for parsing an expression.
     /// It correctly dispatches to low-precedence forms first.

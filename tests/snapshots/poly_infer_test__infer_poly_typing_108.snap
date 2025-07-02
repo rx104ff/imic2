@@ -1,0 +1,10 @@
+---
+source: tests/poly_infer_test.rs
+expression: "&result"
+---
+f: 'a. ('a -> 'a) |- f 3 : int by T-App {
+    f: 'a. ('a -> 'a) |- f : (int -> int) by T-Var {
+    };
+    f: 'a. ('a -> 'a) |- 3 : int by T-Int {
+    };
+};

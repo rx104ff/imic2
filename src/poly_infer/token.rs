@@ -1,28 +1,10 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Keywords
-    Let, 
-    In, 
-    If, 
-    Then, 
-    Else, 
-    Match, 
-    With, 
-    Fun, 
-    Rec,
+    Let, In, If, Then, Else, Match, With, Fun, Rec,
 
     // Symbols
-    Equals, 
-    Bar, 
-    Minus, 
-    Plus, 
-    Star, 
-    Lt, 
-    Arrow, 
-    Colon, 
-    ColonColon, 
-    Comma, 
-    Turnstile,
+    Equals, Bar, Minus, Plus, Star, Lt, Arrow, Colon, ColonColon, Comma, Turnstile,
     Dot, // .
 
     // Literals and Identifiers
@@ -36,76 +18,112 @@ pub enum Token {
 }
 
 /// Tokenizes an input string into a sequence of Tokens for PolyTypingML4.
+/// This version correctly handles all tokens and avoids infinite loops.
 pub fn tokenize(input: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
-    let mut s: &str = input;
+    let mut chars = input.chars().peekable();
 
-    while !s.is_empty() {
-        // --- Multi-character symbols first ---
-        if s.starts_with("|-") {
-            tokens.push(Token::Turnstile);
-            s = &s[2..];
-        } else if s.starts_with("->") {
-            tokens.push(Token::Arrow);
-            s = &s[2..];
-        } else if s.starts_with("::") {
-            tokens.push(Token::ColonColon);
-            s = &s[2..];
-        } else if s.starts_with("[]") {
-            tokens.push(Token::Nil);
-            s = &s[2..];
-        // --- Keywords and Identifiers ---
-        } else if s.chars().next().map_or(false, |c| c.is_alphabetic()) {
-            let end = s.find(|c: char| !c.is_alphanumeric()).unwrap_or(s.len());
-            let keyword = &s[..end];
-            s = &s[end..];
-            match keyword {
-                "let" => tokens.push(Token::Let),
-                "in" => tokens.push(Token::In),
-                "if" => tokens.push(Token::If),
-                "then" => tokens.push(Token::Then),
-                "else" => tokens.push(Token::Else),
-                "match" => tokens.push(Token::Match),
-                "with" => tokens.push(Token::With),
-                "fun" => tokens.push(Token::Fun),
-                "rec" => tokens.push(Token::Rec),
-                "true" | "True" => tokens.push(Token::Bool(true)),
-                "false" | "False" => tokens.push(Token::Bool(false)),
-                _ => tokens.push(Token::Ident(keyword.to_string())),
+    while let Some(&c) = chars.peek() {
+        match c {
+            // Skip all whitespace characters.
+            c if c.is_whitespace() => {
+                chars.next(); // Consume and continue to the next character.
             }
-        // --- Numbers ---
-        } else if s.chars().next().map_or(false, |c| c.is_ascii_digit()) {
-            let end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
-            let num_str = &s[..end];
-            s = &s[end..];
-            tokens.push(Token::Int(num_str.parse().unwrap()));
-        // --- Single-character symbols and whitespace ---
-        } else {
-            let c = s.chars().next().unwrap();
-            match c {
-                '\'' => { // Handle type variables like 'a
-                    s = &s[1..]; // consume '
-                    let end = s.find(|c: char| !c.is_alphanumeric()).unwrap_or(s.len());
-                    let name = &s[..end];
-                    s = &s[end..];
-                    tokens.push(Token::TypeVar(name.to_string()));
+            // Handle type variables like 'a or 'b
+            '\'' => {
+                chars.next(); // Consume '\''
+                let mut name = String::new();
+                while let Some(&next_c) = chars.peek() {
+                    if next_c.is_alphanumeric() {
+                        name.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
                 }
-                '(' => tokens.push(Token::LParen),
-                ')' => tokens.push(Token::RParen),
-                '=' => tokens.push(Token::Equals),
-                '|' => tokens.push(Token::Bar),
-                '-' => tokens.push(Token::Minus),
-                '+' => tokens.push(Token::Plus),
-                '*' => tokens.push(Token::Star),
-                '<' => tokens.push(Token::Lt),
-                ':' => tokens.push(Token::Colon),
-                ',' => tokens.push(Token::Comma),
-                '.' => tokens.push(Token::Dot),
-                c if c.is_whitespace() => { /* Skip */ }
-                _ => panic!("Unexpected character: {}", c),
-            };
-            if !c.is_whitespace() && c != '\'' {
-                 s = &s[1..];
+                if name.is_empty() {
+                    panic!("Invalid type variable: missing name after '");
+                }
+                tokens.push(Token::TypeVar(name));
+            }
+            // Handle keywords and identifiers
+            c if c.is_alphabetic() => {
+                let mut ident = String::new();
+                while let Some(&next_c) = chars.peek() {
+                    if next_c.is_alphanumeric() {
+                        ident.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+                let token = match ident.as_str() {
+                    "let" => Token::Let, "in" => Token::In, "if" => Token::If,
+                    "then" => Token::Then, "else" => Token::Else, "match" => Token::Match,
+                    "with" => Token::With, "fun" => Token::Fun, "rec" => Token::Rec,
+                    "true" | "True" => Token::Bool(true), "false" | "False" => Token::Bool(false),
+                    _ => Token::Ident(ident),
+                };
+                tokens.push(token);
+            }
+            // Handle numbers
+            c if c.is_ascii_digit() => {
+                let mut number = String::new();
+                while let Some(&next_c) = chars.peek() {
+                    if next_c.is_ascii_digit() {
+                        number.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+                tokens.push(Token::Int(number.parse().unwrap()));
+            }
+            // Handle multi-character symbols
+            '-' => {
+                chars.next(); // Consume '-'
+                if chars.peek() == Some(&'>') {
+                    chars.next(); // Consume '>'
+                    tokens.push(Token::Arrow);
+                } else {
+                    tokens.push(Token::Minus);
+                }
+            }
+            ':' => {
+                chars.next(); // Consume ':'
+                if chars.peek() == Some(&':') {
+                    chars.next(); // Consume second ':'
+                    tokens.push(Token::ColonColon);
+                } else {
+                    tokens.push(Token::Colon);
+                }
+            }
+            '|' => {
+                chars.next(); // Consume '|'
+                if chars.peek() == Some(&'-') {
+                    chars.next(); // Consume '-'
+                    tokens.push(Token::Turnstile);
+                } else {
+                    tokens.push(Token::Bar);
+                }
+            }
+            '[' => {
+                chars.next(); // Consume '['
+                if chars.peek() == Some(&']') {
+                    chars.next(); // Consume ']'
+                    tokens.push(Token::Nil);
+                } else {
+                    panic!("Unmatched '['");
+                }
+            }
+            // Handle single-character symbols
+            '(' => { chars.next(); tokens.push(Token::LParen); }
+            ')' => { chars.next(); tokens.push(Token::RParen); }
+            '=' => { chars.next(); tokens.push(Token::Equals); }
+            '+' => { chars.next(); tokens.push(Token::Plus); }
+            '*' => { chars.next(); tokens.push(Token::Star); }
+            '<' => { chars.next(); tokens.push(Token::Lt); }
+            ',' => { chars.next(); tokens.push(Token::Comma); }
+            '.' => { chars.next(); tokens.push(Token::Dot); }
+            _ => {
+                panic!("Unexpected character: {}", c);
             }
         }
     }

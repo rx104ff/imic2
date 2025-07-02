@@ -36,7 +36,7 @@ fn unify_variable(tv: &TypeVar, t: &Type, sub: &Substitution) -> Result<Substitu
         return Err(format!("Recursive type detected: {} occurs in {}", tv, t));
     }
     let mut new_sub = sub.clone();
-    new_sub.insert(*tv, t.clone());
+    new_sub.insert(tv.clone(), t.clone());
     Ok(new_sub)
 }
 

@@ -1,6 +1,8 @@
+use std::cell::Cell;
 use std::fmt;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::hash::{Hash, Hasher};
 
 // --- Core Expression AST for PolyTypingML4 ---
 
@@ -27,14 +29,38 @@ pub enum Expr {
 
 // --- Types, Type Variables, and Type Schemes ---
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
-pub struct TypeVar(usize);
+thread_local! {
+    static NEXT_TYPE_VAR_ID: Cell<usize> = Cell::new(0);
+}
 
-static NEXT_TYPE_VAR_ID: AtomicUsize = AtomicUsize::new(0);
+// NEW: Public function to reset the counter for deterministic tests.
+pub fn reset_type_var_counter() {
+    NEXT_TYPE_VAR_ID.with(|counter| {
+        counter.set(0);
+    });
+}
 
 impl TypeVar {
+    /// Creates a fresh type variable for internal use by the inferrer.
     pub fn new() -> Self {
-        TypeVar(NEXT_TYPE_VAR_ID.fetch_add(1, Ordering::SeqCst))
+        let id = NEXT_TYPE_VAR_ID.with(|counter| {
+            let id = counter.get();
+            counter.set(id + 1);
+            id
+        });
+        let name = format!("'{}", ((id % 26) as u8 + b'a') as char);
+        TypeVar { id, name }
+    }
+
+
+    /// Creates a type variable from a name found in the source code.
+    pub fn new_from_name(name: String) -> Self {
+        let id = NEXT_TYPE_VAR_ID.with(|counter| {
+            let id = counter.get();
+            counter.set(id + 1);
+            id
+        });
+        TypeVar { id, name: format!("'{}", name) }
     }
 }
 
@@ -48,11 +74,31 @@ pub enum Type {
 }
 
 /// A Type Scheme represents a polymorphic type, e.g., `forall 'a. 'a -> 'a`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+pub struct TypeVar {
+    pub id: usize, // Made public for hashing/eq
+    name: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct TyScheme {
     pub vars: Vec<TypeVar>,
     pub ty: Type,
 }
+
+impl PartialEq for TyScheme {
+    fn eq(&self, other: &Self) -> bool {
+        if self.ty != other.ty { return false; }
+        let self_vars: HashSet<_> = self.vars.iter().collect();
+        let other_vars: HashSet<_> = other.vars.iter().collect();
+        self_vars == other_vars
+    }
+}
+impl Eq for TyScheme {}
+
+impl PartialEq for TypeVar { fn eq(&self, other: &Self) -> bool { self.id == other.id } }
+impl Eq for TypeVar {}
+impl Hash for TypeVar { fn hash<H: Hasher>(&self, state: &mut H) { self.id.hash(state); } }
 
 /// The Type Environment maps variables to polymorphic Type Schemes.
 pub type TypeEnv = Vec<(Var, TyScheme)>;
@@ -123,9 +169,7 @@ impl fmt::Display for Expr {
 
 impl fmt::Display for TypeVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let c = ((self.0 % 26) as u8 + b'a') as char;
-        if self.0 >= 26 { write!(f, "'{}{}", c, self.0 / 26) } 
-        else { write!(f, "'{}", c) }
+        write!(f, "{}", self.name)
     }
 }
 
@@ -162,7 +206,7 @@ impl Type {
 
     fn collect_ftv(&self, ftv: &mut HashSet<TypeVar>) {
         match self {
-            Type::Var(tv) => { ftv.insert(*tv); }
+            Type::Var(tv) => { ftv.insert(tv.clone()); }
             Type::Fun(t1, t2) => {
                 t1.collect_ftv(ftv);
                 t2.collect_ftv(ftv);
