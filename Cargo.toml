@@ -17,5 +17,9 @@ path = "src/bin/nat.rs"
 name = "infer"
 path = "src/bin/infer.rs"
 
+[[bin]]
+name = "poly_infer"
+path = "src/bin/poly_infer.rs"
+
 [dev-dependencies]
 insta = { version = "1.39.0", features = ["yaml"] }
