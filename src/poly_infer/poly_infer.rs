@@ -217,10 +217,46 @@ fn instantiate(scheme: &TyScheme, ctx: &mut InferContext) -> Type {
     apply_sub(&scheme.ty, &fresh_sub)
 }
 
+/// CORRECTED: Helper function to apply substitutions to a polymorphic type environment.
+fn apply_sub_to_env(env: &TypeEnv, sub: &Substitution) -> TypeEnv {
+    env.iter()
+        .map(|(var, scheme)| {
+            // We must not substitute the variables that are quantified by this scheme.
+            let mut temp_sub = sub.clone();
+            for quantified_var in &scheme.vars {
+                temp_sub.remove(quantified_var);
+            }
+            let new_ty = apply_sub(&scheme.ty, &temp_sub);
+            (var.clone(), TyScheme { vars: scheme.vars.clone(), ty: new_ty })
+        })
+        .collect()
+}
+
+/// Applies substitutions to all types within a derivation tree.
 fn apply_sub_to_deriv(deriv: &mut Derivation, sub: &Substitution) {
     deriv.ty = apply_sub(&deriv.ty, sub);
-    deriv.env = deriv.env.iter().map(|(v, s)| (v.clone(), TyScheme { vars: s.vars.clone(), ty: apply_sub(&s.ty, sub) })).collect();
+    deriv.env = apply_sub_to_env(&deriv.env, sub); // Use the corrected helper
     for premise in &mut deriv.premises {
         apply_sub_to_deriv(premise, sub);
+    }
+}
+
+/// Helper function to default any remaining Type::Var to Type::Int.
+fn default_unconstrained_vars(t: &Type) -> Type {
+    match t {
+        Type::Var(_) => Type::Int, // Default hanging type variables to int
+        Type::Fun(p, r) => Type::Fun(Box::new(default_unconstrained_vars(p)), Box::new(default_unconstrained_vars(r))),
+        Type::List(inner) => Type::List(Box::new(default_unconstrained_vars(inner))),
+        _ => t.clone(), // Concrete types (Int, Bool) remain unchanged.
+    }
+}
+
+/// Recursively applies the defaulting logic to the entire derivation tree.
+fn default_vars_in_deriv(deriv: &mut Derivation) {
+    deriv.ty = default_unconstrained_vars(&deriv.ty);
+    // Correctly map over the environment, which contains TyScheme structs.
+    deriv.env = deriv.env.iter().map(|(v, s)| (v.clone(), TyScheme { vars: s.vars.clone(), ty: default_unconstrained_vars(&s.ty) })).collect();
+    for premise in &mut deriv.premises {
+        default_vars_in_deriv(premise);
     }
 }

@@ -29,9 +29,20 @@ pub fn unify(t1: &Type, t2: &Type, sub: &Substitution) -> Result<Substitution, S
 
 /// Unifies a variable with a type, performing the crucial "occurs check".
 fn unify_variable(tv: &TypeVar, t: &Type, sub: &Substitution) -> Result<Substitution, String> {
+    // If `t` is also a type variable, we implement the priority rule.
     if let Type::Var(tv2) = t {
-        if *tv == *tv2 { return Ok(sub.clone()); }
+        if tv.id == tv2.id {
+            return Ok(sub.clone());
+        }
+        // CORRECTED: Always unify the variable with the higher ID into the one with the lower ID.
+        // This makes the unification process deterministic.
+        let (from, to) = if tv.id > tv2.id { (tv, tv2) } else { (tv2, tv) };
+        let mut new_sub = sub.clone();
+        new_sub.insert(from.clone(), Type::Var(to.clone()));
+        return Ok(new_sub);
     }
+    
+    // Standard occurs check and substitution for non-variable types.
     if occurs(tv, t, sub) {
         return Err(format!("Recursive type detected: {} occurs in {}", tv, t));
     }

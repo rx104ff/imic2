@@ -4,7 +4,7 @@ use insta::assert_snapshot;
 /// A helper function to simulate a full run of the polymorphic type inferrer.
 /// It tokenizes, parses, and infers the type for a given judgment string.
 fn run_poly_test(input: &str) -> String {
-    poly_infer::ast::reset_fresh_var_name_counter();
+    poly_infer::ast::reset_type_var_counter();
     let tokens = poly_infer::token::tokenize(input);
     let mut parser = poly_infer::parser::Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
@@ -81,13 +81,13 @@ fn test_infer_poly_typing_115() {
 }
 
 // TODO: This test produces inconsistant output
-// #[test]
-// fn test_infer_poly_typing_116() {
-//     let result = run_poly_test("|- let s = fun f -> fun g -> fun x -> f x (g x) in
-//    let k = fun x -> fun y -> x in
-//    s k k : 'a -> 'a");
-//     assert_snapshot!(&result);
-// }
+#[test]
+fn test_infer_poly_typing_116() {
+    let result = run_poly_test("|- let s = fun f -> fun g -> fun x -> f x (g x) in
+   let k = fun x -> fun y -> x in
+   s k k : 'a -> 'a");
+    assert_snapshot!(&result);
+}
 
 #[test]
 fn test_infer_poly_typing_117() {
@@ -97,6 +97,7 @@ fn test_infer_poly_typing_117() {
 
 #[test]
 fn test_infer_poly_typing_118() {
+    
     let result = run_poly_test("|- let l = (fun x -> x) :: [] in
    let l1 = (fun y -> y + 1) :: l in
    (fun z -> if z then false else true) :: l : (bool -> bool) list");

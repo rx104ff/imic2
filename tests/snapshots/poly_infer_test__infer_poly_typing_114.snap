@@ -3,34 +3,34 @@ source: tests/poly_infer_test.rs
 expression: "&result"
 ---
 |- let twice = fun f -> fun x -> f (f x) in twice (fun x -> x + 4) 5 : int by T-Let {
-    |- fun f -> fun x -> f (f x) : (('d -> 'd) -> ('d -> 'd)) by T-Abs {
-        f: ('d -> 'd) |- fun x -> f (f x) : ('d -> 'd) by T-Abs {
-            f: ('d -> 'd), x: 'd |- f (f x) : 'd by T-App {
-                f: ('d -> 'd), x: 'd |- f : ('d -> 'd) by T-Var {
+    |- fun f -> fun x -> f (f x) : (('b -> 'b) -> ('b -> 'b)) by T-Abs {
+        f: ('b -> 'b) |- fun x -> f (f x) : ('b -> 'b) by T-Abs {
+            f: ('b -> 'b), x: 'b |- f (f x) : 'b by T-App {
+                f: ('b -> 'b), x: 'b |- f : ('b -> 'b) by T-Var {
                 };
-                f: ('d -> 'd), x: 'd |- (f x) : 'd by T-App {
-                    f: ('d -> 'd), x: 'd |- f : ('d -> 'd) by T-Var {
+                f: ('b -> 'b), x: 'b |- (f x) : 'b by T-App {
+                    f: ('b -> 'b), x: 'b |- f : ('b -> 'b) by T-Var {
                     };
-                    f: ('d -> 'd), x: 'd |- x : 'd by T-Var {
+                    f: ('b -> 'b), x: 'b |- x : 'b by T-Var {
                     };
                 };
             };
         };
     };
-    twice: 'd. (('d -> 'd) -> ('d -> 'd)) |- twice (fun x -> x + 4) 5 : int by T-App {
-        twice: 'd. (('d -> 'd) -> ('d -> 'd)) |- twice (fun x -> x + 4) : (int -> int) by T-App {
-            twice: 'd. (('d -> 'd) -> ('d -> 'd)) |- twice : ((int -> int) -> (int -> int)) by T-Var {
+    twice: 'b. (('b -> 'b) -> ('b -> 'b)) |- twice (fun x -> x + 4) 5 : int by T-App {
+        twice: 'b. (('b -> 'b) -> ('b -> 'b)) |- twice (fun x -> x + 4) : (int -> int) by T-App {
+            twice: 'b. (('b -> 'b) -> ('b -> 'b)) |- twice : ((int -> int) -> (int -> int)) by T-Var {
             };
-            twice: 'd. (('d -> 'd) -> ('d -> 'd)) |- (fun x -> x + 4) : (int -> int) by T-Abs {
-                twice: 'd. (('d -> 'd) -> ('d -> 'd)), x: int |- x + 4 : int by T-Plus {
-                    twice: 'd. (('d -> 'd) -> ('d -> 'd)), x: int |- x : int by T-Var {
+            twice: 'b. (('b -> 'b) -> ('b -> 'b)) |- (fun x -> x + 4) : (int -> int) by T-Abs {
+                twice: 'b. (('b -> 'b) -> ('b -> 'b)), x: int |- x + 4 : int by T-Plus {
+                    twice: 'b. (('b -> 'b) -> ('b -> 'b)), x: int |- x : int by T-Var {
                     };
-                    twice: 'd. (('d -> 'd) -> ('d -> 'd)), x: int |- 4 : int by T-Int {
+                    twice: 'b. (('b -> 'b) -> ('b -> 'b)), x: int |- 4 : int by T-Int {
                     };
                 };
             };
         };
-        twice: 'd. (('d -> 'd) -> ('d -> 'd)) |- 5 : int by T-Int {
+        twice: 'b. (('b -> 'b) -> ('b -> 'b)) |- 5 : int by T-Int {
         };
     };
 };
