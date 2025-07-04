@@ -1,11 +1,10 @@
-use std::collections::{HashMap};
+use std::collections::BTreeMap;
 use crate::poly_infer::ast::{Type, TypeVar};
 
-// A substitution map from a type variable to its inferred type.
-pub type Substitution = HashMap<TypeVar, Type>;
+// A substitution map from a type variable to its inferred type, using BTreeMap for deterministic iteration.
+pub type Substitution = BTreeMap<TypeVar, Type>;
 
 /// The main unification function. Tries to make two types equal.
-/// Returns a set of substitutions if successful.
 pub fn unify(t1: &Type, t2: &Type, sub: &Substitution) -> Result<Substitution, String> {
     let t1 = apply_sub(t1, sub);
     let t2 = apply_sub(t2, sub);
@@ -28,13 +27,12 @@ pub fn unify(t1: &Type, t2: &Type, sub: &Substitution) -> Result<Substitution, S
 }
 
 /// Unifies a variable with a type, performing the crucial "occurs check".
+/// This version is corrected to be deterministic when unifying two variables.
 fn unify_variable(tv: &TypeVar, t: &Type, sub: &Substitution) -> Result<Substitution, String> {
-    // If `t` is also a type variable, we implement the priority rule.
     if let Type::Var(tv2) = t {
         if tv.id == tv2.id {
             return Ok(sub.clone());
         }
-        // CORRECTED: Always unify the variable with the higher ID into the one with the lower ID.
         // This makes the unification process deterministic.
         let (from, to) = if tv.id > tv2.id { (tv, tv2) } else { (tv2, tv) };
         let mut new_sub = sub.clone();
@@ -42,7 +40,6 @@ fn unify_variable(tv: &TypeVar, t: &Type, sub: &Substitution) -> Result<Substitu
         return Ok(new_sub);
     }
     
-    // Standard occurs check and substitution for non-variable types.
     if occurs(tv, t, sub) {
         return Err(format!("Recursive type detected: {} occurs in {}", tv, t));
     }

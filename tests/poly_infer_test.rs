@@ -7,11 +7,11 @@ fn run_poly_test(input: &str) -> String {
     poly_infer::ast::reset_type_var_counter();
     let tokens = poly_infer::token::tokenize(input);
     let mut parser = poly_infer::parser::Parser::new(tokens);
-    let judgment = match parser.parse_judgment() {
+    let (judgment, used_names) = match parser.parse_judgment() {
         Ok(j) => j,
         Err(e) => return format!("Parsing Error: {}", e),
     };
-    match poly_infer::poly_infer::infer_judgment(&judgment) {
+    match poly_infer::poly_infer::infer_judgment(&judgment, used_names) {
         Ok(derivation) => {
             // The derivation object contains the full proof tree with all types resolved.
             // We can now print it directly.

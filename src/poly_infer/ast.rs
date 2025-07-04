@@ -1,9 +1,8 @@
-use std::cell::{Cell, RefCell};
+use std::cell::{RefCell};
 use std::fmt;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::hash::{Hash, Hasher};
-use std::sync::Mutex;
+use std::cmp::Ordering;
 
 // --- Core Expression AST for PolyTypingML4 ---
 
@@ -117,7 +116,7 @@ pub enum Type {
 #[derive(Debug, Clone)]
 pub struct TypeVar {
     pub id: usize, // Made public for hashing/eq
-    name: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +137,16 @@ impl Eq for TyScheme {}
 
 impl PartialEq for TypeVar { fn eq(&self, other: &Self) -> bool { self.id == other.id } }
 impl Eq for TypeVar {}
+impl PartialOrd for TypeVar {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for TypeVar {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
 impl Hash for TypeVar { fn hash<H: Hasher>(&self, state: &mut H) { self.id.hash(state); } }
 
 /// The Type Environment maps variables to polymorphic Type Schemes.

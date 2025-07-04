@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::poly_infer::ast::{Expr, Var, Op, Type, TypeEnv, TyScheme, TypeVar, Judgment};
 use crate::poly_infer::token::Token;
@@ -24,23 +24,25 @@ pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     type_var_map: HashMap<String, TypeVar>,
+    next_parser_var_id: usize,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, pos: 0, type_var_map: HashMap::new() }
+        Parser { tokens, pos: 0, type_var_map: HashMap::new(), next_parser_var_id: 0 }
     }
 
     /// The main entry point for the parser.
     /// It parses a judgment of the form `env |- expr : type`
     /// and returns the parsed Judgment struct.
-    pub fn parse_judgment(&mut self) -> Result<Judgment, String> {
+    pub fn parse_judgment(&mut self) -> Result<(Judgment, HashSet<String>), String> {
         let env = self.parse_type_env()?;
         self.expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;
         self.expect(Token::Colon)?;
         let ty = self.parse_type()?;
-        Ok(Judgment { env, expr, ty })
+        let used_names = self.type_var_map.keys().map(|s| format!("'{}", s)).collect();
+        Ok((Judgment { env, expr, ty }, used_names))
     }
 
     // --- Helper Methods ---
@@ -60,6 +62,17 @@ impl Parser {
         }
     }
 
+    fn get_or_create_parser_var(&mut self, name: String) -> TypeVar {
+        if let Some(var) = self.type_var_map.get(&name) {
+            return var.clone();
+        }
+        let id = self.next_parser_var_id;
+        self.next_parser_var_id += 1;
+        let tv = TypeVar { id, name: format!("'{}", name) };
+        self.type_var_map.insert(name, tv.clone());
+        tv
+    }
+
     // --- Type Environment and Type Parsing ---
     fn parse_type_env(&mut self) -> Result<TypeEnv, String> {
         let mut env = TypeEnv::new();
@@ -67,7 +80,6 @@ impl Parser {
         loop {
             let var = self.next_var()?;
             self.expect(Token::Colon)?;
-            // CORRECTED: Call parse_type_scheme to get a TyScheme.
             let scheme = self.parse_type_scheme()?;
             env.push((var, scheme));
             if self.peek() == Some(&Token::Comma) { self.advance(); } 
@@ -82,25 +94,22 @@ impl Parser {
         let mut potential_var_names = vec![];
         let initial_pos = self.pos;
 
-        // 1. Greedily collect all consecutive TypeVar tokens.
         while let Some(Token::TypeVar(name)) = self.peek().cloned() {
             potential_var_names.push(name);
             self.advance();
         }
 
-        // 2. Check if this sequence is followed by a dot.
         if self.peek() == Some(&Token::Dot) {
-            self.advance(); // Consume the dot.
+            self.advance();
+            potential_var_names.sort();
             for name in potential_var_names {
-                let tv = self.type_var_map.entry(name.clone()).or_insert_with(|| TypeVar::new_from_name(name)).clone();
+                let tv = self.get_or_create_parser_var(name);
                 quantified_vars.push(tv);
             }
         } else {
-            // It was not a `forall` expression. Rewind the parser.
             self.pos = initial_pos;
         }
 
-        // 3. Parse the main body of the type.
         let ty = self.parse_type()?;
         Ok(TyScheme { vars: quantified_vars, ty })
     }
@@ -148,7 +157,6 @@ impl Parser {
     }
 
     /// The main entrypoint for parsing an expression.
-    /// It correctly dispatches to low-precedence forms first.
     fn parse_expr(&mut self) -> Result<Expr, String> {
         match self.peek() {
             Some(Token::Let) => self.parse_let_expr(),

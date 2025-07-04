@@ -16,7 +16,7 @@ fn main() {
 
     // 2. Parse the tokens into a Judgment struct.
     let mut parser = poly_infer::parser::Parser::new(tokens);
-    let judgment = match parser.parse_judgment() {
+    let (judgment, used_names) = match parser.parse_judgment() {
         Ok(j) => j,
         Err(e) => {
             eprintln!("Parsing Error: {}", e);
@@ -25,7 +25,7 @@ fn main() {
     };
 
     // 3. Run the type inferrer on the parsed judgment.
-    match poly_infer::poly_infer::infer_judgment(&judgment) {
+    match poly_infer::poly_infer::infer_judgment(&judgment, used_names) {
         Ok(derivation) => {
             // The derivation object contains the full proof tree with all types resolved.
             // We can now print it directly.

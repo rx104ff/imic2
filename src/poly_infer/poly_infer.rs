@@ -1,24 +1,40 @@
-use std::collections::{HashMap, HashSet};
-use crate::poly_infer::ast::{Expr, Op, Var, Type, TypeVar, TyScheme, TypeEnv, Judgment};
+use std::collections::{BTreeMap, HashSet};
+use crate::poly_infer::ast::{Expr, Op, Type, TypeVar, TyScheme, TypeEnv, Judgment};
 use crate::poly_infer::proof::Derivation;
 use crate::poly_infer::unification::{unify, apply_sub, Substitution};
 
 // The context for inference, holding substitutions.
 struct InferContext {
     sub: Substitution,
+    var_counter: usize,
+    used_names: HashSet<String>,
 }
 
 impl InferContext {
-    fn new_type_var(&self) -> Type {
-        Type::Var(TypeVar::new())
+    fn new_type_var(&mut self) -> Type {
+        let mut name_id = 0;
+        loop {
+            let name = format!("'{}", ((name_id % 26) as u8 + b'a') as char);
+            if !self.used_names.contains(&name) {
+                self.used_names.insert(name.clone());
+                let id = self.var_counter;
+                self.var_counter += 1;
+                // Use a large offset to ensure inferrer IDs do not collide with parser IDs.
+                print!("{}", name);
+                return Type::Var(TypeVar { id: id + 1000, name });
+            }
+            name_id += 1;
+        }
     }
 }
 
 /// The main public entry point for the type inferrer.
 /// It takes a judgment `Γ ⊢ e`, infers its type, and returns a full derivation proof.
-pub fn infer_judgment(judgment: &Judgment) -> Result<Derivation, String> {
-        let mut ctx = InferContext {
-        sub: HashMap::new(),
+pub fn infer_judgment(judgment: &Judgment, used_names: HashSet<String>) -> Result<Derivation, String> {
+    let mut ctx = InferContext {
+        sub: BTreeMap::new(),
+        var_counter: 0,
+        used_names, // Initialize with names from the parser.
     };
     // 1. Infer the most general type for the expression and get its derivation.
     let mut inferred_derivation = infer_expr(&mut ctx, &judgment.env, &judgment.expr)?;
@@ -197,7 +213,6 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
 }
 
 // --- Polymorphism and Finalization Helpers ---
-
 fn generalize(env: &TypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
     let ty = apply_sub(ty, sub);
     let mut env_ftv = HashSet::new();
@@ -205,7 +220,14 @@ fn generalize(env: &TypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
         env_ftv.extend(apply_sub(&scheme.ty, sub).free_type_vars());
     }
     let ty_ftv = ty.free_type_vars();
-    let quantified_vars = ty_ftv.difference(&env_ftv).cloned().collect();
+    
+    // Collect the difference into a Vec
+    let mut quantified_vars: Vec<_> = ty_ftv.difference(&env_ftv).cloned().collect();
+    
+    // Sort the quantified variables by their ID to ensure a canonical order.
+    // This is crucial for deterministic instantiation and display.
+    quantified_vars.sort_by_key(|v| v.id);
+    
     TyScheme { vars: quantified_vars, ty }
 }
 
@@ -217,7 +239,6 @@ fn instantiate(scheme: &TyScheme, ctx: &mut InferContext) -> Type {
     apply_sub(&scheme.ty, &fresh_sub)
 }
 
-/// CORRECTED: Helper function to apply substitutions to a polymorphic type environment.
 fn apply_sub_to_env(env: &TypeEnv, sub: &Substitution) -> TypeEnv {
     env.iter()
         .map(|(var, scheme)| {
@@ -238,25 +259,5 @@ fn apply_sub_to_deriv(deriv: &mut Derivation, sub: &Substitution) {
     deriv.env = apply_sub_to_env(&deriv.env, sub); // Use the corrected helper
     for premise in &mut deriv.premises {
         apply_sub_to_deriv(premise, sub);
-    }
-}
-
-/// Helper function to default any remaining Type::Var to Type::Int.
-fn default_unconstrained_vars(t: &Type) -> Type {
-    match t {
-        Type::Var(_) => Type::Int, // Default hanging type variables to int
-        Type::Fun(p, r) => Type::Fun(Box::new(default_unconstrained_vars(p)), Box::new(default_unconstrained_vars(r))),
-        Type::List(inner) => Type::List(Box::new(default_unconstrained_vars(inner))),
-        _ => t.clone(), // Concrete types (Int, Bool) remain unchanged.
-    }
-}
-
-/// Recursively applies the defaulting logic to the entire derivation tree.
-fn default_vars_in_deriv(deriv: &mut Derivation) {
-    deriv.ty = default_unconstrained_vars(&deriv.ty);
-    // Correctly map over the environment, which contains TyScheme structs.
-    deriv.env = deriv.env.iter().map(|(v, s)| (v.clone(), TyScheme { vars: s.vars.clone(), ty: default_unconstrained_vars(&s.ty) })).collect();
-    for premise in &mut deriv.premises {
-        default_vars_in_deriv(premise);
     }
 }
