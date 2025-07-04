@@ -192,3 +192,64 @@ fn test_ml1_53() {
     evalto 6");
     assert_snapshot!(&result);
 }
+
+#[test]
+fn test_ml1_70() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- (1 + 2) :: (3 + 4) :: [] evalto 3 :: 7 :: []");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_71() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let f = fun x -> match x with [] -> 0 | a :: b -> a in
+        f (4::[]) + f [] + f (1 :: 2 :: 3 :: [])
+    evalto 5");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_72() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let rec f = fun x -> if x < 1 then [] else x :: f (x - 1) in
+    f 3 evalto 3 :: 2 :: 1 :: []");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_73() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let rec length = fun l -> match l with [] -> 0 | x :: y -> 1 + length y in
+    length (1 :: 2 :: 3 :: []) evalto 3");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_74() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let rec length = fun l -> match l with [] -> 0 | x :: y -> 1 + length y in
+    length ((1 :: 2 :: []) :: (3 :: 4 :: 5 :: []) :: []) evalto 2");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_75() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let rec append = fun l1 -> fun l2 -> 
+      match l1 with [] -> l2 | x :: y -> x :: append y l2 in
+    append (1 :: 2 :: []) (3 :: 4 :: 5 :: []) evalto 1 :: 2 :: 3 :: 4 :: 5 :: []");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_76() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let rec apply = fun l -> fun x ->
+        match l with [] -> x | f :: l -> f (apply l x) in
+        apply ((fun x -> x * x) :: (fun y -> y + 3) :: []) 4 
+    evalto 49");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_77() {
+    let result = run_eval_test(LanguageVersion::ML4, "|- let rec apply = fun l -> fun x ->
+        match l with [] -> x | f :: l -> apply l (f x) in
+        apply ((fun x -> x * x) :: (fun y -> y + 3) :: []) 4 
+    evalto 19");
+    assert_snapshot!(&result);
+}
