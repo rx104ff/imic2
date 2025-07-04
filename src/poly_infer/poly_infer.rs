@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use crate::poly_infer::ast::{Expr, Op, Type, TypeVar, TyScheme, TypeEnv, Judgment};
 use crate::poly_infer::proof::Derivation;
-use crate::poly_infer::unification::{unify, apply_sub, Substitution};
+use crate::poly_infer::unifier::{unify, apply_sub, Substitution};
 
 // The context for inference, holding substitutions.
 struct InferContext {
