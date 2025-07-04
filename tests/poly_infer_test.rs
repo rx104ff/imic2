@@ -80,7 +80,6 @@ fn test_infer_poly_typing_115() {
     assert_snapshot!(&result);
 }
 
-// TODO: This test produces inconsistant output
 #[test]
 fn test_infer_poly_typing_116() {
     let result = run_poly_test("|- let s = fun f -> fun g -> fun x -> f x (g x) in
