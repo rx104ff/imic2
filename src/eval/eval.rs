@@ -168,7 +168,7 @@ impl ToML4String for Value {
                 let s = format!("{} :: {}", h.to_ml4_string(), t.to_ml4_string());
                 if *is_paren { format!("({})", s) } else { s }
             }
-            Value::FunVal(param, body, env, is_paren) => {
+            Value::FunVal(param, body, env, _) => {
                 let env_str = if env.is_empty() {
                     "()".to_string()
                 } else {
@@ -177,9 +177,9 @@ impl ToML4String for Value {
                         .collect::<Vec<_>>().join(", "))
                 };
                 let s = format!("{}[fun {} -> {}]", env_str, param.0, body.to_ml4_string());
-                if *is_paren { format!("({})", s) } else { s }
+                s
             }
-            Value::RecFunVal(f, x, body, env, is_paren) => {
+            Value::RecFunVal(f, x, body, env, _) => {
                 let env_str = if env.is_empty() {
                     "()".to_string()
                 } else {
@@ -188,7 +188,7 @@ impl ToML4String for Value {
                         .collect::<Vec<_>>().join(", "))
                 };
                 let s = format!("{}[rec {} = fun {} -> {}]", env_str, f.0, x.0, body.to_ml4_string());
-                if *is_paren { format!("({})", s) } else { s }
+                s
             }
         }
     }

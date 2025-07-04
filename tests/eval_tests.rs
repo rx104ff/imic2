@@ -96,3 +96,99 @@ fn test_ml1_40() {
     let result = run_eval_test(LanguageVersion::ML3, "|- fun x -> x + 1 evalto ()[fun x -> x + 1]");
     assert_snapshot!(&result);
 }
+
+#[test]
+fn test_ml1_41() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let y = 2 in fun x -> x + y evalto (y=2)[fun x -> x + y]");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_42() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let sq = fun x -> x * x in sq 3 + sq 4 evalto 25");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_43() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let sm = fun f -> f 3 + f 4 in sm (fun x -> x * x) evalto 25");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_44() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let max = fun x -> fun y -> if x < y then y else x in max 3 5 evalto 5");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_45() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let a = 3 in let f = fun y -> y * a in let a = 5 in f 4 evalto 12");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_46() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let twice = fun f -> fun x -> f (f x) in twice (fun x -> x * x) 2 evalto 16");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_47() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let twice = fun f -> fun x -> f (f x) in twice twice (fun x -> x * x) 2 evalto 65536");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_48() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let compose = fun f -> fun g -> fun x -> f (g x) in 
+        let p = fun x -> x * x in
+        let q = fun x -> x + 4 in
+        compose p q 4 
+    evalto 64");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_49() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let s = fun f -> fun g -> fun x -> f x (g x) in
+        let k = fun x -> fun y -> x in
+        s k k 7
+    evalto 7");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_50() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let rec fact = fun n ->
+        if n < 2 then 1 else n * fact (n - 1) in
+        fact 3
+    evalto 6");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_51() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let rec fib = fun n -> if n < 3 then 1 else fib (n - 1) + fib (n - 2) in
+        fib 5
+    evalto 5");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_52() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let rec sum = fun f -> fun n ->
+        if n < 1 then 0 else f n + sum f (n - 1) in 
+        sum (fun x -> x * x) 2
+    evalto 5");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_ml1_53() {
+    let result = run_eval_test(LanguageVersion::ML3, "|- let fact = fun self -> fun n ->
+        if n < 2 then 1 else n * self self (n - 1) in
+        fact fact 3
+    evalto 6");
+    assert_snapshot!(&result);
+}
