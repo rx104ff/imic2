@@ -208,7 +208,6 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
                 rule: "T-Match".to_string(), premises: vec![d1, d2, d3],
             })
         }
-        _ => Err("Inference for this expression form is not yet implemented.".to_string()),
     }
 }
 

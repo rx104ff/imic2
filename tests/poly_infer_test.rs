@@ -96,9 +96,8 @@ fn test_infer_poly_typing_117() {
 
 #[test]
 fn test_infer_poly_typing_118() {
-    
     let result = run_poly_test("|- let l = (fun x -> x) :: [] in
-   let l1 = (fun y -> y + 1) :: l in
-   (fun z -> if z then false else true) :: l : (bool -> bool) list");
+    let l1 = (fun y -> y + 1) :: l in
+    (fun z -> if z then false else true) :: l : (bool -> bool) list");
     assert_snapshot!(&result);
 }
