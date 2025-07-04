@@ -1,5 +1,5 @@
 use std::env;
-use imic2::poly_infer; 
+use imic2::{common, poly_infer}; 
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -12,7 +12,7 @@ fn main() {
     let input = &args[1];
 
     // 1. Tokenize the input string.
-    let tokens = poly_infer::token::tokenize(input);
+    let tokens = common::token::tokenize(input);
 
     // 2. Parse the tokens into a Judgment struct.
     let mut parser = poly_infer::parser::Parser::new(tokens);

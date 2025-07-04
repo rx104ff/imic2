@@ -1,4 +1,4 @@
-use imic2::nat;
+use imic2::{common, nat};
 use imic2::nat::ast::ComparisonMode;
 use imic2::nat::parser::Parser;
 
@@ -6,7 +6,7 @@ use insta::assert_snapshot;
 
 
 fn run_nat_test(mode: Option<ComparisonMode>, input: &str) -> String {
-    let tokens = nat::token::tokenize(input);
+    let tokens = common::token::tokenize(input);
     let mut parser = Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
         Ok(j) => j,

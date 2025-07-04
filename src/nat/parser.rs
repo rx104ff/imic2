@@ -1,5 +1,5 @@
 use crate::nat::ast::{Nat, Expr, Judgment, ArithmeticOp, ReductionType};
-use crate::nat::token::Token;
+use crate::common::token::Token;
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -64,7 +64,7 @@ impl Parser {
 
     fn parse_term(&mut self) -> Result<Expr, String> {
         let mut lhs = self.parse_factor()?;
-        while let Some(Token::TimesOp) = self.peek() {
+        while let Some(Token::Star) = self.peek() {
             self.advance(); // Consume '*'
             let rhs = self.parse_factor()?;
             lhs = Expr::Times(Box::new(lhs), Box::new(rhs));
@@ -74,7 +74,7 @@ impl Parser {
 
     pub fn parse_expr(&mut self) -> Result<Expr, String> {
         let mut lhs = self.parse_term()?;
-        while let Some(Token::PlusOp) = self.peek() {
+        while let Some(Token::Plus) = self.peek() {
             self.advance(); // Consume '+'
             let rhs = self.parse_term()?;
             lhs = Expr::Plus(Box::new(lhs), Box::new(rhs));
@@ -121,8 +121,8 @@ impl Parser {
                 };
 
                 match self.peek() {
-                    Some(Token::Plus) | Some(Token::Times) => {
-                        let op = if *self.peek().unwrap() == Token::Plus { ArithmeticOp::Plus } else { ArithmeticOp::Times };
+                    Some(Token::PlusKw) | Some(Token::TimesKw) => {
+                        let op = if *self.peek().unwrap() == Token::PlusKw { ArithmeticOp::Plus } else { ArithmeticOp::Times };
                         self.advance();
                         let n2 = self.parse_nat()?;
                         self.expect(Token::Is)?;

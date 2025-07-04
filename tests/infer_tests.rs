@@ -1,9 +1,9 @@
-use imic2::infer;
+use imic2::{common, infer};
 use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the type checker.
 fn run_type_test(input: &str) -> String {
-    let tokens = infer::token::tokenize(input);
+    let tokens = common::token::tokenize(input);
     let mut parser = infer::parser::Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
         Ok(j) => j,

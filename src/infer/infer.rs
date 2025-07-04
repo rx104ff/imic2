@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::infer::ast::{Expr, Op, Type, TypeVar, TypeEnv, Judgment};
 use crate::infer::proof::Derivation;
-use crate::infer::unification::{unify, apply_sub, Substitution};
+use crate::infer::unifier::{unify, apply_sub, Substitution};
 
 // The context for inference, holding substitutions and the type environment.
 struct InferContext {

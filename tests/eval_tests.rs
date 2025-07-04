@@ -1,6 +1,6 @@
+use imic2::common;
 use imic2::eval::ast::LanguageVersion;
 use imic2::eval::parser::Parser;
-use imic2::eval::token;
 use insta::assert_snapshot;
 
 fn run_eval_test(version: LanguageVersion, program: &str) -> String {
@@ -10,7 +10,7 @@ fn run_eval_test(version: LanguageVersion, program: &str) -> String {
         program.to_string()
     };
 
-    let tokens = token::tokenize(&full_input);
+    let tokens = common::token::tokenize(&full_input);
     let mut parser = Parser::new(tokens);
     let (env, expr) = parser.parse_program();
 

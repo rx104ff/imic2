@@ -1,5 +1,5 @@
 use std::env;
-use imic2::infer; 
+use imic2::{common, infer}; 
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -12,7 +12,7 @@ fn main() {
     let input = &args[1];
 
     // 1. Tokenize the input string.
-    let tokens = infer::token::tokenize(input);
+    let tokens = common::token::tokenize(input);
     
     // 2. The parser now consumes the entire judgment string (`env |- expr : type`)
     //    and returns a single, complete Judgment struct.

@@ -1,5 +1,5 @@
 use std::env;
-use imic2::nat;
+use imic2::{common, nat};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -30,7 +30,7 @@ fn main() {
         },
     };
 
-    let tokens = nat::token::tokenize(input_str);
+    let tokens = common::token::tokenize(input_str);
     let mut parser = nat::parser::Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
         Ok(j) => j,

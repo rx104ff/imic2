@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::poly_infer::ast::{Expr, Var, Op, Type, TypeEnv, TyScheme, TypeVar, Judgment};
-use crate::poly_infer::token::Token;
+use crate::common::token::Token;
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
 /// This sets the `is_paren` flag to true for any compound expression type.

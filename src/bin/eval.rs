@@ -2,10 +2,10 @@
 use std::env;
 use std::io;
 
+use imic2::common;
 use imic2::eval::ast::LanguageVersion;
 use imic2::eval::eval::derive;
 use imic2::eval::parser::Parser;
-use imic2::eval::token;
 
 
 fn main() -> io::Result<()> {
@@ -37,7 +37,7 @@ fn main() -> io::Result<()> {
         program = format!("|- {}", program);
     }
 
-    let tokens = token::tokenize(&program);
+    let tokens = common::token::tokenize(&program);
     let mut parser = Parser::new(tokens);
     let (env, expr) = parser.parse_program();
 
