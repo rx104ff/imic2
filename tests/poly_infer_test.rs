@@ -101,3 +101,42 @@ fn test_infer_poly_typing_118() {
     (fun z -> if z then false else true) :: l : (bool -> bool) list");
     assert_snapshot!(&result);
 }
+
+#[test]
+fn test_infer_poly_typing_119() {
+    let result = run_poly_test("|- let rec length = fun l ->    match l with [] -> 0 | x :: y -> 1 + length y in
+    length (3 :: 2 :: []) + length ((1 :: []) :: []) : int");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_infer_poly_typing_120() {
+    let result = run_poly_test("|- let rec map = fun f -> fun l -> match l with [] -> [] | x :: y -> f x :: map f y in
+    map (fun x -> x < 3) (map (fun x -> x * 2) (4 :: 5 :: 1 :: [])) : bool list");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_infer_poly_typing_121() {
+    let result = run_poly_test("|- let rec map = fun f -> fun l -> match l with [] -> [] | x :: y -> f x :: map f y in
+    let f = map (fun x -> x) in
+    let a = f (3 :: []) in f (true :: []) : bool list");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_infer_poly_typing_122() {
+    let result = run_poly_test("|- let f = fun x -> 
+             let g = fun y -> x :: [] in 
+             if true then g 3 else g false in
+    match f 2 with [] -> f true | x :: y -> [] : bool list");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_infer_poly_typing_123() {
+    let result = run_poly_test("|- let f = fun x -> 
+             let g = fun y -> y x :: [] in g (fun z -> 4) in
+    match f true with [] -> 3 :: [] | x :: y -> f x : int list");
+    assert_snapshot!(&result);
+}

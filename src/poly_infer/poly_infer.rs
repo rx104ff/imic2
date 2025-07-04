@@ -168,7 +168,7 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
             let (expected_t1, expected_t2, result_ty, rule_name) = match op {
                 Op::Add => (Type::Int, Type::Int, Type::Int, "T-Plus"),
                 Op::Sub => (Type::Int, Type::Int, Type::Int, "T-Minus"),
-                Op::Mul => (Type::Int, Type::Int, Type::Int, "T-Times"),
+                Op::Mul => (Type::Int, Type::Int, Type::Int, "T-Mult"),
                 Op::Lt => (Type::Int, Type::Int, Type::Bool, "T-Lt"),
                 Op::Cons => {
                     let elem_type = ctx.new_type_var();

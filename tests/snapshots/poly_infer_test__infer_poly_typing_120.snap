@@ -1,0 +1,74 @@
+---
+source: tests/poly_infer_test.rs
+expression: "&result"
+---
+|- let rec map = fun f -> fun l -> match l with [] -> [] | x::y -> f x :: map f y in map (fun x -> x < 3) (map (fun x -> x * 2) (4 :: 5 :: 1 :: [])) : bool list by T-LetRec {
+    map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e) |- fun l -> match l with [] -> [] | x::y -> f x :: map f y : ('d list -> 'e list) by T-Abs {
+        map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list |- match l with [] -> [] | x::y -> f x :: map f y : 'e list by T-Match {
+            map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list |- l : 'd list by T-Var {
+            };
+            map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list |- [] : 'e list by T-Nil {
+            };
+            map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- f x :: map f y : 'e list by T-Cons {
+                map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- f x : 'e by T-App {
+                    map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- f : ('d -> 'e) by T-Var {
+                    };
+                    map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- x : 'd by T-Var {
+                    };
+                };
+                map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- map f y : 'e list by T-App {
+                    map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- map f : ('d list -> 'e list) by T-App {
+                        map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- map : (('d -> 'e) -> ('d list -> 'e list)) by T-Var {
+                        };
+                        map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- f : ('d -> 'e) by T-Var {
+                        };
+                    };
+                    map: (('d -> 'e) -> ('d list -> 'e list)), f: ('d -> 'e), l: 'd list, x: 'd, y: 'd list |- y : 'd list by T-Var {
+                    };
+                };
+            };
+        };
+    };
+    map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map (fun x -> x < 3) (map (fun x -> x * 2) (4 :: 5 :: 1 :: [])) : bool list by T-App {
+        map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map (fun x -> x < 3) : (int list -> bool list) by T-App {
+            map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map : ((int -> bool) -> (int list -> bool list)) by T-Var {
+            };
+            map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- (fun x -> x < 3) : (int -> bool) by T-Abs {
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: int |- x < 3 : bool by T-Lt {
+                    map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: int |- x : int by T-Var {
+                    };
+                    map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: int |- 3 : int by T-Int {
+                    };
+                };
+            };
+        };
+        map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- (map (fun x -> x * 2) (4 :: 5 :: 1 :: [])) : int list by T-App {
+            map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map (fun x -> x * 2) : (int list -> int list) by T-App {
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map : ((int -> int) -> (int list -> int list)) by T-Var {
+                };
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- (fun x -> x * 2) : (int -> int) by T-Abs {
+                    map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: int |- x * 2 : int by T-Mult {
+                        map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: int |- x : int by T-Var {
+                        };
+                        map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: int |- 2 : int by T-Int {
+                        };
+                    };
+                };
+            };
+            map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- (4 :: 5 :: 1 :: []) : int list by T-Cons {
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- 4 : int by T-Int {
+                };
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- 5 :: 1 :: [] : int list by T-Cons {
+                    map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- 5 : int by T-Int {
+                    };
+                    map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- 1 :: [] : int list by T-Cons {
+                        map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- 1 : int by T-Int {
+                        };
+                        map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- [] : int list by T-Nil {
+                        };
+                    };
+                };
+            };
+        };
+    };
+};

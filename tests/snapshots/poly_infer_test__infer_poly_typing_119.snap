@@ -1,0 +1,52 @@
+---
+source: tests/poly_infer_test.rs
+expression: "&result"
+---
+|- let rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y in length (3 :: 2 :: []) + length ((1 :: []) :: []) : int by T-LetRec {
+    length: ('c list -> int), l: 'c list |- match l with [] -> 0 | x::y -> 1 + length y : int by T-Match {
+        length: ('c list -> int), l: 'c list |- l : 'c list by T-Var {
+        };
+        length: ('c list -> int), l: 'c list |- 0 : int by T-Int {
+        };
+        length: ('c list -> int), l: 'c list, x: 'c, y: 'c list |- 1 + length y : int by T-Plus {
+            length: ('c list -> int), l: 'c list, x: 'c, y: 'c list |- 1 : int by T-Int {
+            };
+            length: ('c list -> int), l: 'c list, x: 'c, y: 'c list |- length y : int by T-App {
+                length: ('c list -> int), l: 'c list, x: 'c, y: 'c list |- length : ('c list -> int) by T-Var {
+                };
+                length: ('c list -> int), l: 'c list, x: 'c, y: 'c list |- y : 'c list by T-Var {
+                };
+            };
+        };
+    };
+    length: 'c. ('c list -> int) |- length (3 :: 2 :: []) + length ((1 :: []) :: []) : int by T-Plus {
+        length: 'c. ('c list -> int) |- length (3 :: 2 :: []) : int by T-App {
+            length: 'c. ('c list -> int) |- length : (int list -> int) by T-Var {
+            };
+            length: 'c. ('c list -> int) |- (3 :: 2 :: []) : int list by T-Cons {
+                length: 'c. ('c list -> int) |- 3 : int by T-Int {
+                };
+                length: 'c. ('c list -> int) |- 2 :: [] : int list by T-Cons {
+                    length: 'c. ('c list -> int) |- 2 : int by T-Int {
+                    };
+                    length: 'c. ('c list -> int) |- [] : int list by T-Nil {
+                    };
+                };
+            };
+        };
+        length: 'c. ('c list -> int) |- length ((1 :: []) :: []) : int by T-App {
+            length: 'c. ('c list -> int) |- length : (int list list -> int) by T-Var {
+            };
+            length: 'c. ('c list -> int) |- ((1 :: []) :: []) : int list list by T-Cons {
+                length: 'c. ('c list -> int) |- (1 :: []) : int list by T-Cons {
+                    length: 'c. ('c list -> int) |- 1 : int by T-Int {
+                    };
+                    length: 'c. ('c list -> int) |- [] : int list by T-Nil {
+                    };
+                };
+                length: 'c. ('c list -> int) |- [] : int list list by T-Nil {
+                };
+            };
+        };
+    };
+};
