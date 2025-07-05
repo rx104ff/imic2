@@ -1,9 +1,9 @@
 use std::fmt;
-use  crate::infer::ast::{Type, TypeEnv, Expr};
+use  crate::common::ast::{Expr, MonoTypeEnv, PolyTypeEnv, Type};
 
 #[derive(Debug)]
 pub struct Derivation {
-    pub env: TypeEnv,
+    pub env: MonoTypeEnv,
     pub expr: Expr,
     pub ty: Type,
     pub rule: String,
@@ -11,7 +11,7 @@ pub struct Derivation {
 }
 
 /// Helper function to format the type environment (gamma) for display.
-fn format_env(env: &TypeEnv) -> String {
+fn format_env(env: &MonoTypeEnv) -> String {
     if env.is_empty() {
         // An empty environment is often omitted for clarity.
         "".to_string()

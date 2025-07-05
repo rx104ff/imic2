@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::common::ast::{Expr, Var, Op, Type, TypeEnv, TyScheme, TypeVar, Judgment};
+use crate::common::ast::{Expr, Var, Op, Type, PolyTypeEnv, TyScheme, TypeVar, Judgment};
 use crate::common::tokenizer::Token;
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
@@ -74,8 +74,8 @@ impl Parser {
     }
 
     // --- Type Environment and Type Parsing ---
-    fn parse_type_env(&mut self) -> Result<TypeEnv, String> {
-        let mut env = TypeEnv::new();
+    fn parse_type_env(&mut self) -> Result<PolyTypeEnv, String> {
+        let mut env = PolyTypeEnv::new();
         if self.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
             let var = self.next_var()?;

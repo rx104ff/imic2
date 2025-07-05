@@ -68,7 +68,8 @@ impl Hash for TypeVar {
     } 
 }
 
-pub type TypeEnv = Vec<(Var, TyScheme)>;
+pub type MonoTypeEnv = Vec<(Var, Type)>;
+pub type PolyTypeEnv = Vec<(Var, TyScheme)>;
 
 // --- Universal Expression AST ---
 
@@ -110,10 +111,10 @@ pub enum Judgment {
     ReducesTo(Expr, Expr, String), // e.g., `e1 ---> e2`
     
     // For Type Checking
-    Infer(TypeEnv, Expr, Type),
+    Infer(MonoTypeEnv, Expr, Type),
     
     // For Polymorphic Inference
-    PolyInfer(TypeEnv, Expr, Type),
+    PolyInfer(PolyTypeEnv, Expr, Type),
 }
 
 // --- All Display and Helper Implementations ---

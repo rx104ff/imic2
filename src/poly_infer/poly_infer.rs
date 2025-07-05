@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
-use crate::common::ast::{Expr, Op, Type, TypeVar, TyScheme, TypeEnv, Judgment};
+use crate::common::ast::{Expr, Op, Type, TypeVar, TyScheme, PolyTypeEnv, Judgment};
 use crate::poly_infer::proof::Derivation;
 use crate::poly_infer::unifier::{unify, apply_sub, Substitution};
 
@@ -55,7 +55,7 @@ pub fn infer_judgment(judgment: &Judgment, used_names: HashSet<String>) -> Resul
 
 /// The recursive helper that generates and solves type constraints,
 /// while simultaneously building the derivation tree.
-fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivation, String> {
+fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &Expr) -> Result<Derivation, String> {
     match e {
         Expr::Int(_) => Ok(Derivation {
             env: env.clone(), expr: e.clone(), ty: Type::Int,
@@ -145,13 +145,17 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
             let t1 = ctx.new_type_var();
             let t2 = ctx.new_type_var();
             let fun_ty = Type::Fun(Box::new(t1.clone()), Box::new(t2.clone()));
+
             let mut new_env1 = env.clone();
             new_env1.push((f.clone(), TyScheme { vars: vec![], ty: fun_ty.clone() }));
             new_env1.push((x.clone(), TyScheme { vars: vec![], ty: t1 }));
+
             let d1 = infer_expr(ctx, &new_env1, e1)?;
             ctx.sub = unify(&d1.ty, &t2, &ctx.sub)?;
+
             let mut new_env2 = env.clone();
             new_env2.push((f.clone(), generalize(env, &fun_ty, &ctx.sub)));
+            
             let d2 = infer_expr(ctx, &new_env2, e2)?;
             Ok(Derivation {
                 env: env.clone(), expr: e.clone(), ty: d2.ty.clone(),
@@ -191,16 +195,21 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
         Expr::Match(e1, e2, x, y, e3, _) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
+
             let elem_ty = ctx.new_type_var();
             let list_ty = Type::List(Box::new(elem_ty.clone()));
             ctx.sub = unify(&t1, &list_ty, &ctx.sub)?;
+            
             let d2 = infer_expr(ctx, env, e2)?;
             let t_nil = apply_sub(&d2.ty, &ctx.sub);
+
             let mut new_env = env.clone();
             new_env.push((x.clone(), TyScheme { vars: vec![], ty: elem_ty }));
             new_env.push((y.clone(), TyScheme { vars: vec![], ty: list_ty }));
+
             let d3 = infer_expr(ctx, &new_env, e3)?;
             let t_cons = apply_sub(&d3.ty, &ctx.sub);
+            
             ctx.sub = unify(&t_nil, &t_cons, &ctx.sub)?;
             Ok(Derivation {
                 env: env.clone(), expr: e.clone(), ty: t_nil,
@@ -212,7 +221,7 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
 }
 
 // --- Polymorphism and Finalization Helpers ---
-fn generalize(env: &TypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
+fn generalize(env: &PolyTypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
     let ty = apply_sub(ty, sub);
     let mut env_ftv = HashSet::new();
     for (_, scheme) in env {
@@ -238,7 +247,7 @@ fn instantiate(scheme: &TyScheme, ctx: &mut InferContext) -> Type {
     apply_sub(&scheme.ty, &fresh_sub)
 }
 
-fn apply_sub_to_env(env: &TypeEnv, sub: &Substitution) -> TypeEnv {
+fn apply_sub_to_env(env: &PolyTypeEnv, sub: &Substitution) -> PolyTypeEnv {
     env.iter()
         .map(|(var, scheme)| {
             // We must not substitute the variables that are quantified by this scheme.
