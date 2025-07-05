@@ -30,7 +30,7 @@ fn main() {
         },
     };
 
-    let tokens = common::token::tokenize(input_str);
+    let tokens = common::tokenizer::tokenize(input_str);
     let mut parser = nat::parser::Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
         Ok(j) => j,

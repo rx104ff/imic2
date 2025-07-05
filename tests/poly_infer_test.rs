@@ -5,7 +5,7 @@ use insta::assert_snapshot;
 /// It tokenizes, parses, and infers the type for a given judgment string.
 fn run_poly_test(input: &str) -> String {
     poly_infer::ast::reset_type_var_counter();
-    let tokens = common::token::tokenize(input);
+    let tokens = common::tokenizer::tokenize(input);
     let mut parser = poly_infer::parser::Parser::new(tokens);
     let (judgment, used_names) = match parser.parse_judgment() {
         Ok(j) => j,

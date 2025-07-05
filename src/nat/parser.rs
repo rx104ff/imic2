@@ -1,5 +1,5 @@
 use crate::nat::ast::{Nat, Expr, Judgment, ArithmeticOp, ReductionType};
-use crate::common::token::Token;
+use crate::common::tokenizer::Token;
 
 pub struct Parser {
     tokens: Vec<Token>,

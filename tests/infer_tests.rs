@@ -3,7 +3,7 @@ use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the type checker.
 fn run_type_test(input: &str) -> String {
-    let tokens = common::token::tokenize(input);
+    let tokens = common::tokenizer::tokenize(input);
     let mut parser = infer::parser::Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
         Ok(j) => j,

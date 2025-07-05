@@ -6,7 +6,7 @@ use insta::assert_snapshot;
 
 
 fn run_nat_test(mode: Option<ComparisonMode>, input: &str) -> String {
-    let tokens = common::token::tokenize(input);
+    let tokens = common::tokenizer::tokenize(input);
     let mut parser = Parser::new(tokens);
     let judgment = match parser.parse_judgment() {
         Ok(j) => j,

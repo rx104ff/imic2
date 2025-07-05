@@ -12,7 +12,7 @@ fn main() {
     let input = &args[1];
 
     // 1. Tokenize the input string.
-    let tokens = common::token::tokenize(input);
+    let tokens = common::tokenizer::tokenize(input);
     
     // 2. The parser now consumes the entire judgment string (`env |- expr : type`)
     //    and returns a single, complete Judgment struct.

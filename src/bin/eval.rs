@@ -37,7 +37,7 @@ fn main() -> io::Result<()> {
         program = format!("|- {}", program);
     }
 
-    let tokens = common::token::tokenize(&program);
+    let tokens = common::tokenizer::tokenize(&program);
     let mut parser = Parser::new(tokens);
     let (env, expr) = parser.parse_program();
 

@@ -12,7 +12,7 @@ fn main() {
     let input = &args[1];
 
     // 1. Tokenize the input string.
-    let tokens = common::token::tokenize(input);
+    let tokens = common::tokenizer::tokenize(input);
 
     // 2. Parse the tokens into a Judgment struct.
     let mut parser = poly_infer::parser::Parser::new(tokens);

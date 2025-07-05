@@ -1,5 +1,5 @@
 use crate::infer::ast::{Expr, Var, Op, Type, TypeEnv, Judgment};
-use crate::common::token::Token;
+use crate::common::tokenizer::Token;
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
 /// This sets the `is_paren` flag to true for any compound expression type.

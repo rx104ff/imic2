@@ -10,7 +10,7 @@ fn run_eval_test(version: LanguageVersion, program: &str) -> String {
         program.to_string()
     };
 
-    let tokens = common::token::tokenize(&full_input);
+    let tokens = common::tokenizer::tokenize(&full_input);
     let mut parser = Parser::new(tokens);
     let (env, expr) = parser.parse_program();
 

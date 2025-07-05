@@ -7,7 +7,7 @@ pub enum Token {
     Is, Less, Than, PlusKw, TimesKw, Z, S,
     
     // Symbols
-    Equals, Bar, Minus, Plus, Star, Lt, Arrow, Colon, ColonColon, Comma, Turnstile, Dot,
+    Equals, Bar, Minus, Plus, Star, Lt, Colon, ColonColon, Comma, Turnstile, Dot,
     
     // Literals and Identifiers
     Int(i64),
@@ -20,6 +20,7 @@ pub enum Token {
     
     // Evaluation and Reduction
     Evalto,
+    Arrow,     // --->
     ArrowD,    // -d->
     ArrowStar, // -*->
     
