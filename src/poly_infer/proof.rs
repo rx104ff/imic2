@@ -1,5 +1,5 @@
 use std::fmt;
-use  crate::poly_infer::ast::{Type, TypeEnv, Expr};
+use  crate::common::ast::{Type, TypeEnv, Expr};
 
 #[derive(Debug)]
 pub struct Derivation {

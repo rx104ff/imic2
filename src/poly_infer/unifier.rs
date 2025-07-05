@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use crate::poly_infer::ast::{Type, TypeVar};
+use crate::common::ast::{Type, TypeVar};
 
 // A substitution map from a type variable to its inferred type, using BTreeMap for deterministic iteration.
 pub type Substitution = BTreeMap<TypeVar, Type>;

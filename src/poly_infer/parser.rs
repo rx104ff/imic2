@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::poly_infer::ast::{Expr, Var, Op, Type, TypeEnv, TyScheme, TypeVar, Judgment};
+use crate::common::ast::{Expr, Var, Op, Type, TypeEnv, TyScheme, TypeVar, Judgment};
 use crate::common::tokenizer::Token;
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
@@ -42,7 +42,7 @@ impl Parser {
         self.expect(Token::Colon)?;
         let ty = self.parse_type()?;
         let used_names = self.type_var_map.keys().map(|s| format!("'{}", s)).collect();
-        Ok((Judgment { env, expr, ty }, used_names))
+        Ok((Judgment::PolyInfer(env, expr, ty), used_names))
     }
 
     // --- Helper Methods ---
@@ -136,7 +136,7 @@ impl Parser {
             }
             Some(Token::TypeVar(name)) => {
                 self.advance();
-                let tv = self.type_var_map.entry(name.clone()).or_insert_with(|| TypeVar::new_from_name(name)).clone();
+                let tv = self.get_or_create_parser_var(name);
                 Type::Var(tv)
             }
             Some(Token::LParen) => {

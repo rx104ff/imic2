@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
-use crate::poly_infer::ast::{Expr, Op, Type, TypeVar, TyScheme, TypeEnv, Judgment};
+use crate::common::ast::{Expr, Op, Type, TypeVar, TyScheme, TypeEnv, Judgment};
 use crate::poly_infer::proof::Derivation;
 use crate::poly_infer::unifier::{unify, apply_sub, Substitution};
 
@@ -31,27 +31,26 @@ impl InferContext {
 /// The main public entry point for the type inferrer.
 /// It takes a judgment `Γ ⊢ e`, infers its type, and returns a full derivation proof.
 pub fn infer_judgment(judgment: &Judgment, used_names: HashSet<String>) -> Result<Derivation, String> {
-    let mut ctx = InferContext {
-        sub: BTreeMap::new(),
-        var_counter: 0,
-        used_names, // Initialize with names from the parser.
-    };
-    // 1. Infer the most general type for the expression and get its derivation.
-    let mut inferred_derivation = infer_expr(&mut ctx, &judgment.env, &judgment.expr)?;
+    match judgment {
+        // Handle the case for polymorphic type inference (PolyTypingML4)
+        Judgment::PolyInfer(env, expr, expected_ty) => {
+            let mut ctx = InferContext {
+                sub: BTreeMap::new(),
+                var_counter: 0,
+                used_names
+            };
+            // We infer the expression's type, with polymorphism enabled.
+            let mut inferred_derivation = infer_expr(&mut ctx, env, expr)?;
+            
+            let final_sub = unify(&inferred_derivation.ty, expected_ty, &ctx.sub)?;
+            ctx.sub = final_sub;
 
-    // 2. Unify the inferred type with the expected type from the judgment.
-    // This creates the necessary substitutions (e.g., mapping a fresh variable like 'c' to a parsed one like 'a').
-    let final_sub = unify(&inferred_derivation.ty, &judgment.ty, &ctx.sub)?;
-    ctx.sub = final_sub;
-
-    // 3. Apply the final substitutions to the entire derivation tree.
-    // This will "collapse" all the fresh type variables into their final, concrete forms.
-    apply_sub_to_deriv(&mut inferred_derivation, &ctx.sub);
-    
-    // 4. The top-level conclusion of the proof should now match the original judgment's type.
-    inferred_derivation.ty = judgment.ty.clone();
-    
-    Ok(inferred_derivation)
+            apply_sub_to_deriv(&mut inferred_derivation, &ctx.sub);
+            inferred_derivation.ty = apply_sub(expected_ty, &ctx.sub);
+            Ok(inferred_derivation)
+        }
+        _ => Err("This judgment type is not supported by the type checker.".to_string()),
+    }
 }
 
 /// The recursive helper that generates and solves type constraints,
@@ -208,6 +207,7 @@ fn infer_expr(ctx: &mut InferContext, env: &TypeEnv, e: &Expr) -> Result<Derivat
                 rule: "T-Match".to_string(), premises: vec![d1, d2, d3],
             })
         }
+        _ => Err("This judgment type is not supported by the type checker.".to_string()),
     }
 }
 
