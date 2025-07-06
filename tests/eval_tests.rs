@@ -12,10 +12,15 @@ fn run_eval_test(version: LanguageVersion, program: &str) -> String {
 
     let tokens = common::tokenizer::tokenize(&full_input);
     let mut parser = Parser::new(tokens);
-    let (env, expr) = parser.parse_program();
+    let judgment = match parser.parse_program() {
+        Ok(j) => j,
+        Err(e) => return format!("Parsing Error: {}", e),
+    };
 
-    let derivation = imic2::eval::eval::derive(&env, &expr, version);
-    format!("{}", derivation)
+    match imic2::eval::eval::derive_judgement(&judgment, version) {
+        Ok(derivation) => format!("{}", derivation),
+        Err(e) => format!("Type Error: {}", e),
+    } 
 }
 
 

@@ -1,5 +1,5 @@
 use std::fmt;
-use  crate::common::ast::{Expr, MonoTypeEnv, PolyTypeEnv, Type};
+use  crate::common::ast::{Expr, MonoTypeEnv, Type};
 
 #[derive(Debug)]
 pub struct Derivation {

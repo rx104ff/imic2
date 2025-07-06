@@ -19,6 +19,21 @@ pub enum Nat {
     S(Box<Nat>),
 }
 
+// --- Value AST for the `eval` system ---
+// These are the runtime values produced by the evaluator.
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    Int(i64),
+    Bool(bool),
+    Nil,
+    Cons(Box<Value>, Box<Value>, bool),
+    FunVal(Var, Box<Expr>, Vec<(Var, Value)>, bool),
+    RecFunVal(Var, Var, Box<Expr>, Vec<(Var, Value)>, bool),
+}
+
+pub type Env = Vec<(Var, Value)>;
+
 // --- Types for Type Systems (TypingML4 & PolyTypingML4) ---
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,7 +117,7 @@ pub enum Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Judgment {
     // For ML evaluation
-    EvaluatesTo(Expr, Type), // Assuming Type can also represent ML values
+    EvaluatesTo(Env, Expr), // Assuming Type can also represent ML values
     
     // For Nat arithmetic
     Is(Expr, Type), // e.g., `1 plus 2 is 3`
@@ -123,6 +138,40 @@ impl fmt::Display for Nat {
         match self {
             Nat::Z => write!(f, "Z"),
             Nat::S(n) => write!(f, "S({})", n),
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Int(i) => write!(f, "{}", i),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::Nil => write!(f, "[]"),
+            Value::Cons(h, t, is_paren) => {
+                let s = format!("{} :: {}", h, t);
+                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+            }
+            Value::FunVal(param, body, env, _) => {
+                let env_str = if env.is_empty() {
+                    "()".to_string()
+                } else {
+                    format!("({})", env.iter()
+                        .map(|(v, val)| format!("{} = {}", v, val))
+                        .collect::<Vec<_>>().join(", "))
+                };
+                write!(f, "{}[fun {} -> {}]", env_str, param, body)
+            }
+            Value::RecFunVal(func, param, body, env, _) => {
+                let env_str = if env.is_empty() {
+                    "()".to_string()
+                } else {
+                    format!("({})", env.iter()
+                        .map(|(v, val)| format!("{} = {}", v, val))
+                        .collect::<Vec<_>>().join(", "))
+                };
+                write!(f, "{}[rec {} = fun {} -> {}]", env_str, func, param, body)
+            }
         }
     }
 }

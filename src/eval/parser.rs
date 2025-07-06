@@ -1,8 +1,7 @@
 // src/parser.rs
 
-use crate::eval::ast::{Expr, Op, Var, Value, Env};
+use crate::common::ast::{Env, Expr, Judgment, Op, Value, Var};
 use crate::common::tokenizer::Token;
-use std::rc::Rc;
 
 fn mark_expr_paren(expr: Expr) -> Expr {
     match expr {
@@ -13,7 +12,6 @@ fn mark_expr_paren(expr: Expr) -> Expr {
         Expr::LetRec(f, x, body, e2, _) => Expr::LetRec(f, x, body, e2, true),
         Expr::If(c, t, e, _) => Expr::If(c, t, e, true),
         Expr::Match(e, nil_case, hd, tl, cons_case, _) => Expr::Match(e, nil_case, hd, tl, cons_case, true),
-        Expr::Cons(h, t, _) => Expr::Cons(h, t, true),
         other => other,
     }
 }
@@ -44,42 +42,38 @@ impl Parser {
         self.advance();
     }
 
-    fn next_var(&mut self) -> Var {
-        let token = self.peek().cloned();
-        match token {
-            Some(Token::Ident(name)) => {
-                self.advance();
-                Var::from(name)
-            }
-            _ => panic!("Expected identifier, found '{:?}'", token),
+    fn next_var(&mut self) -> Result<Var, String> {
+        match self.peek().cloned() {
+            Some(Token::Ident(name)) => { self.advance(); Ok(Var(name)) }
+            _ => Err("Expected an identifier.".to_string()),
         }
     }
 
-    pub fn parse_program(&mut self) -> (Env, Expr) {
+    pub fn parse_program(&mut self) -> Result<Judgment, String> {
         let env = if let Some(Token::Ident(_)) = self.peek() {
             self.parse_env_list()
         } else {
-            Rc::new(vec![])
-        };
+            Ok(vec![])
+        }?;
         self.expect(&Token::Turnstile);
-        let expr = self.parse_expr();
+        let expr = self.parse_expr()?;
         if let Some(Token::Evalto) = self.peek() {
             while self.peek().is_some() && self.peek() != Some(&Token::EOF) {
                 self.advance();
             }
         }
-        (env, expr)
+        Ok(Judgment::EvaluatesTo(env, expr))
     }
 
-    fn parse_env_list(&mut self) -> Env {
+    fn parse_env_list(&mut self) -> Result<Env, String> {
         let mut bindings = vec![];
         loop {
             let token = self.peek().cloned();
             match token {
                 Some(Token::Ident(_)) => {
-                    let var = self.next_var();
+                    let var = self.next_var()?;
                     self.expect(&Token::Equals);
-                    let val = self.parse_value();
+                    let val = self.parse_value()?;
                     bindings.push((var, val));
                     if matches!(self.peek(), Some(Token::Comma)) {
                         self.advance();
@@ -90,37 +84,37 @@ impl Parser {
                 _ => break,
             }
         }
-        Rc::new(bindings)
+        Ok(bindings)
     }
 
-    fn parse_value(&mut self) -> Value {
+    fn parse_value(&mut self) -> Result<Value, String> {
     self.parse_list_value(false)
 }
 
-fn parse_list_value(&mut self, paren: bool) -> Value {
-    let left = self.parse_single_value();
+fn parse_list_value(&mut self, paren: bool) -> Result<Value, String> {
+    let left = self.parse_single_value()?;
     self.parse_list_tail(left, paren)
 }
 
-fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
+fn parse_list_tail(&mut self, left: Value, paren: bool) -> Result<Value, String> {
     if let Some(Token::ColonColon) = self.peek() {
         self.advance();
-        let right = self.parse_list_value(false);
-        Value::Cons(Box::new(left), Box::new(right), paren)
+        let right = self.parse_list_value(false)?;
+        Ok(Value::Cons(Box::new(left), Box::new(right), paren))
     } else {
-        left
+        Ok(left)
     }
 }
 
-    fn parse_single_value(&mut self) -> Value {
+    fn parse_single_value(&mut self) -> Result<Value, String> {
         match self.peek().cloned() {
             Some(Token::Int(n)) => {
                 self.advance();
-                Value::Int(n)
+                Ok(Value::Int(n))
             }
             Some(Token::Bool(b)) => {
                 self.advance();
-                Value::Bool(b)
+                Ok(Value::Bool(b))
             }
             Some(Token::LParen) => {
                 self.advance();
@@ -133,8 +127,8 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
                     if self.peek() == Some(&Token::LBracket) {
                         self.advance();
                         match self.peek() {
-                            Some(Token::Fun) => return self.parse_func_val(env),
-                            Some(Token::Rec) => return self.parse_rec_func_val(env),
+                            Some(Token::Fun) => return self.parse_func_val(env.unwrap()),
+                            Some(Token::Rec) => return self.parse_rec_func_val(env.unwrap()),
                             _ => panic!("Expected fun or rec after ["),
                         }
                     }
@@ -142,18 +136,18 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
 
                 // Not a function env, so rewind and try to parse as a value in parens
                 self.pos = saved_pos;
-                let inner = self.parse_value();
+                let inner = self.parse_value()?;
                 self.expect(&Token::RParen);
 
                 match inner {
-                    Value::Cons(l, r, _) => Value::Cons(l, r, true),
-                    _ => inner,
+                    Value::Cons(l, r, _) => Ok(Value::Cons(l, r, true)),
+                    _ => Ok(inner),
                 }
             }
             Some(Token::LBracket) => {
                 self.advance();
                 self.expect(&Token::RBracket);
-                Value::Nil
+                Ok(Value::Nil)
             }
             _ => panic!("Invalid value syntax: {:?}", self.peek()),
         }
@@ -181,64 +175,64 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
         tokens
     }
 
-    fn parse_func_val(&mut self, env: Env) -> Value {
+    fn parse_func_val(&mut self, env: Env) -> Result<Value, String> {
         self.expect(&Token::Fun);
-        let param = self.next_var();
+        let param = self.next_var()?;
         self.expect(&Token::Arrow);
         let body_tokens = self.collect_tokens_until_rbracket();
         let mut inner_parser = Parser::new(body_tokens);
-        let body = inner_parser.parse_expr();
-        Value::FunVal(param, Box::new(body), env, false)
+        let body = inner_parser.parse_expr()?;
+        Ok(Value::FunVal(param, Box::new(body), env, false))
     }
 
-    fn parse_rec_func_val(&mut self, env: Env) -> Value {
+    fn parse_rec_func_val(&mut self, env: Env) -> Result<Value, String> {
         self.expect(&Token::Rec);
-        let name: Var = self.next_var();
+        let name: Var = self.next_var()?;
         self.expect(&Token::Equals);
         self.expect(&Token::Fun);
-        let param = self.next_var();
+        let param = self.next_var()?;
         self.expect(&Token::Arrow);
         let body_tokens = self.collect_tokens_until_rbracket();
         let mut inner_parser = Parser::new(body_tokens);
-        let body = inner_parser.parse_expr();
-        Value::RecFunVal(name, param, Box::new(body), env, false)
+        let body = inner_parser.parse_expr()?;
+        Ok(Value::RecFunVal(name, param, Box::new(body), env, false))
     }
 
-    fn parse_expr(&mut self) -> Expr {
+    fn parse_expr(&mut self) -> Result<Expr, String> {
         self.parse_lt()
     }
 
-    fn parse_lt(&mut self) -> Expr {
-        let mut expr = self.parse_cons(); // parse lhs first
+    fn parse_lt(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_cons()?; // parse lhs first
         while let Some(Token::Lt) = self.peek() {
             self.advance();
-            let right = self.parse_cons();
+            let right = self.parse_cons()?;
             expr = Expr::BinOp(Box::new(expr), Op::Lt, Box::new(right), false);
         }
-        expr
+        Ok(expr)
     }
 
-    fn parse_cons(&mut self) -> Expr {
+    fn parse_cons(&mut self) -> Result<Expr, String> {
         self.parse_cons_prec(false)
     }
 
-    fn parse_cons_prec(&mut self, paren: bool) -> Expr {
-        let lhs = self.parse_add_sub_prec(false);
+    fn parse_cons_prec(&mut self, paren: bool) -> Result<Expr, String> {
+        let lhs = self.parse_add_sub_prec(false)?;
         self.parse_cons_tail(lhs, paren)
     }
 
-    fn parse_cons_tail(&mut self, lhs: Expr, paren: bool) -> Expr {
+    fn parse_cons_tail(&mut self, lhs: Expr, paren: bool) -> Result<Expr, String> {
         if let Some(Token::ColonColon) = self.peek() {
             self.advance();
-            let rhs = self.parse_cons_prec(false);
-            Expr::BinOp(Box::new(lhs), Op::Cons, Box::new(rhs), paren)
+            let rhs = self.parse_cons_prec(false)?;
+            Ok(Expr::BinOp(Box::new(lhs), Op::Cons, Box::new(rhs), paren))
         } else {
-            lhs
+            Ok(lhs)
         }
     }
 
-    fn parse_add_sub_prec(&mut self, paren: bool) -> Expr {
-        let mut expr = self.parse_mul_div_prec(false);
+    fn parse_add_sub_prec(&mut self, paren: bool) -> Result<Expr, String> {
+        let mut expr = self.parse_mul_div_prec(false)?;
         while let Some(op_token) = self.peek() {
             let op = match op_token {
                 Token::Plus => Op::Add,
@@ -246,142 +240,142 @@ fn parse_list_tail(&mut self, left: Value, paren: bool) -> Value {
                 _ => break,
             };
             self.advance();
-            let right = self.parse_mul_div_prec(false);
+            let right = self.parse_mul_div_prec(false)?;
             expr = Expr::BinOp(Box::new(expr), op, Box::new(right), paren);
         }
-        expr
+        Ok(expr)
     }
 
-    fn parse_mul_div_prec(&mut self, paren: bool) -> Expr {
-        let mut expr = self.parse_app_or_atom();
+    fn parse_mul_div_prec(&mut self, paren: bool) -> Result<Expr, String> {
+        let mut expr = self.parse_app_or_atom()?;
         while let Some(op_token) = self.peek() {
             let op = match op_token {
                 Token::Star => Op::Mul,
                 _ => break,
             };
             self.advance();
-            let right = self.parse_app_or_atom();
+            let right = self.parse_app_or_atom()?;
             expr = Expr::BinOp(Box::new(expr), op, Box::new(right), paren);
         }
-        expr
+        Ok(expr)
     }
 
-    fn parse_app_or_atom(&mut self) -> Expr {
-        let mut expr = self.parse_atom();
+    fn parse_app_or_atom(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_atom()?;
         while matches!(self.peek(), Some(Token::Ident(_)) | Some(Token::Int(_)) | Some(Token::LParen) | Some(Token::Nil)) {
-            let arg = self.parse_atom();
+            let arg = self.parse_atom()?;
             expr = Expr::App(Box::new(expr), Box::new(arg), false);
         }
-        expr
+        Ok(expr)
     }
 
-    fn parse_atom(&mut self) -> Expr {
+    fn parse_atom(&mut self) -> Result<Expr, String> {
         match self.peek() {
             Some(Token::Minus) => {
                 self.advance();
                 match self.peek().cloned() {
                     Some(Token::Int(n)) => {
                         self.advance();
-                        Expr::Int(-(n))
+                        Ok(Expr::Int(-(n)))
                     }
                     _ => {
                         // Parse as unary minus: `-expr` => `0 - expr`
-                        let expr = self.parse_atom();
-                        Expr::BinOp(Box::new(Expr::Int(0)), Op::Sub, Box::new(expr), false)
+                        let expr = self.parse_atom()?;
+                        Ok(Expr::BinOp(Box::new(Expr::Int(0)), Op::Sub, Box::new(expr), false))
                     }
                 }
             }
             Some(Token::If) => self.parse_if(),
             Some(Token::Let) => self.parse_let(),
-            Some(Token::Ident(_)) => Expr::Var(self.next_var()),
+            Some(Token::Ident(_)) => Ok(Expr::Var(self.next_var()?)),
             Some(Token::Int(_)) => self.parse_int(),
             Some(Token::LParen) => {
                 self.advance();
-                let expr = self.parse_expr();
+                let expr = self.parse_expr()?;
                 self.expect(&Token::RParen);
-                mark_expr_paren(expr)
+                Ok(mark_expr_paren(expr))
             }
             Some(Token::Fun) => self.parse_fun_expr(),
             Some(Token::Nil) => {
                 self.advance();
-                Expr::Nil
+                Ok(Expr::Nil)
             },
             Some(Token::Match) => self.parse_match(),
             _ => panic!("Unexpected token in expression: {:?}", self.peek()),
         }
     }
 
-    fn parse_if(&mut self) -> Expr {
+    fn parse_if(&mut self) -> Result<Expr, String> {
         self.expect(&Token::If);
-        let cond = self.parse_expr();
+        let cond = self.parse_expr()?;
         self.expect(&Token::Then);
-        let then_branch = self.parse_expr();
+        let then_branch = self.parse_expr()?;
         self.expect(&Token::Else);
-        let else_branch = self.parse_expr();
-        Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch), false)
+        let else_branch = self.parse_expr()?;
+        Ok(Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch), false))
     }
 
-    fn parse_let(&mut self) -> Expr {
+    fn parse_let(&mut self) -> Result<Expr, String> {
         self.expect(&Token::Let);
         if self.peek() == Some(&Token::Rec) {
             self.advance(); // consume 'rec'
-            let name    = self.next_var(); // 'name'
+            let name    = self.next_var()?; // 'name'
             self.expect(&Token::Equals); // '='
             self.expect(&Token::Fun); // 'fun'
-            let param = self.next_var(); // 'n'
+            let param = self.next_var()?; // 'n'
             self.expect(&Token::Arrow); // '->'
-            let body = self.parse_expr(); // parse the function body
+            let body = self.parse_expr()?; // parse the function body
             self.expect(&Token::In); // 'in'
-            let cont = self.parse_expr(); // continuation expression
-            Expr::LetRec(name, param, Box::new(body), Box::new(cont), false)
+            let cont = self.parse_expr()?; // continuation expression
+            Ok(Expr::LetRec(name, param, Box::new(body), Box::new(cont), false))
         } else {
-            let name = self.next_var();
+            let name = self.next_var()?;
             self.expect(&Token::Equals);
-            let bound_expr = self.parse_expr();
+            let bound_expr = self.parse_expr()?;
             self.expect(&Token::In);
-            let cont = self.parse_expr();
-            Expr::Let(name, Box::new(bound_expr), Box::new(cont), false)
+            let cont = self.parse_expr()?;
+            Ok(Expr::Let(name, Box::new(bound_expr), Box::new(cont), false))
         }
     }
 
-    fn parse_int(&mut self) -> Expr {
+    fn parse_int(&mut self) -> Result<Expr, String> {
         let token = self.peek().cloned();
         match token {
             Some(Token::Int(n)) => {
                 self.advance();
-                Expr::Int(n)
+                Ok(Expr::Int(n))
             }
             _ => panic!("Expected int"),
         }
     }
 
-    fn parse_fun_expr(&mut self) -> Expr {
+    fn parse_fun_expr(&mut self) -> Result<Expr, String> {
         self.expect(&Token::Fun);
-        let param = self.next_var();
+        let param = self.next_var()?;
         self.expect(&Token::Arrow);
-        let body = self.parse_expr();
-        Expr::Fun(param, Box::new(body), false)
+        let body = self.parse_expr()?;
+        Ok(Expr::Fun(param, Box::new(body), false))
     }
 
-    fn parse_match(&mut self) -> Expr {
+    fn parse_match(&mut self) -> Result<Expr, String> {
         self.expect(&Token::Match);
-        let expr = self.parse_expr();
+        let expr = self.parse_expr()?;
         self.expect(&Token::With);
 
         // Case 1: [] -> e2
         self.expect(&Token::Nil);
         self.expect(&Token::Arrow);
-        let nil_case = self.parse_expr();
+        let nil_case = self.parse_expr()?;
 
         // Case 2: | x :: y -> e3
         self.expect(&Token::Bar);
-        let hd = self.next_var();
+        let hd = self.next_var()?;
         self.expect(&Token::ColonColon);
-        let tl = self.next_var();
+        let tl = self.next_var()?;
         self.expect(&Token::Arrow);
-        let cons_case = self.parse_expr();
+        let cons_case = self.parse_expr()?;
 
-        Expr::Match(Box::new(expr), Box::new(nil_case), hd, tl, Box::new(cons_case), false)
+        Ok(Expr::Match(Box::new(expr), Box::new(nil_case), hd, tl, Box::new(cons_case), false))
     }
 
 
