@@ -1,5 +1,5 @@
 use imic2::{common, nat};
-use imic2::nat::ast::ComparisonMode;
+use imic2::nat::version::ComparisonMode;
 use imic2::nat::parser::Parser;
 
 use insta::assert_snapshot;

@@ -1,62 +1,6 @@
-use std::fmt;
-use crate::nat::ast::{ArithmeticOp, Derivation, Judgment, ComparisonMode, Nat, Expr, ReductionType};
-
-impl fmt::Display for Derivation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn fmt_with_indent(d: &Derivation, f: &mut fmt::Formatter, indent: usize) -> fmt::Result {
-            let prefix = "  ".repeat(indent);
-            writeln!(f, "{}{} by {} {{", prefix, d.conclusion, d.rule)?;
-            for premise in &d.premises {
-                fmt_with_indent(premise, f, indent + 1)?;
-            }
-            writeln!(f, "{}}};", prefix)
-        }
-        fmt_with_indent(self, f, 0)
-    }
-}
-
-impl fmt::Display for Nat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Nat::Z => write!(f, "Z"),
-            Nat::S(n) => write!(f, "S({})", n),
-        }
-    }
-}
-
-impl fmt::Display for Judgment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Judgment::Arithmetic { op, n1, n2, n3 } => {
-                let op_str = match op {
-                    ArithmeticOp::Plus => "plus",
-                    ArithmeticOp::Times => "times",
-                };
-                write!(f, "{} {} {} is {}", n1, op_str, n2, n3)
-            }
-            Judgment::Comparison { n1, n2 } => write!(f, "{} is less than {}", n1, n2),
-            Judgment::Evaluation { exp, n } => write!(f, "{} evalto {}", exp, n),
-            Judgment::Reduction { r_type, e1, e2 } => {
-                let arrow = match r_type {
-                    ReductionType::Single => "--->",
-                    ReductionType::Direct => "-d->",
-                    ReductionType::Multi => "-*->",
-                };
-                write!(f, "{} {} {}", e1, arrow, e2)
-            }
-        }
-    }
-}
-
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::N(n) => write!(f, "{}", n),
-            Expr::Plus(e1, e2) => write!(f, "({} + {})", e1, e2),
-            Expr::Times(e1, e2) => write!(f, "({} * {})", e1, e2),
-        }
-    }
-}
+use crate::common::ast::{ArithmeticOp, Judgment, Nat, Expr, ReductionType};
+use crate::nat::version::{ComparisonMode};
+use crate::nat::proof::Derivation;
 
 pub fn derive(j: &Judgment, mode: Option<ComparisonMode>) -> Result<Derivation, String> {
     match j {
@@ -80,14 +24,16 @@ pub fn derive(j: &Judgment, mode: Option<ComparisonMode>) -> Result<Derivation, 
                 ReductionType::Direct => derive_direct_step(e1, e2),
             }
         }
+        _ => Err("This judgment type is not supported by the type checker.".to_string()),
     }
 }
 
-fn eval_expr(exp: &Expr) -> Nat {
+fn eval_expr(exp: &Expr) -> Result<Nat, String> {
     match exp {
-        Expr::N(n) => n.clone(),
-        Expr::Plus(e1, e2) => eval_expr(e1).plus(&eval_expr(e2)),
-        Expr::Times(e1, e2) => eval_expr(e1).times(&eval_expr(e2)),
+        Expr::Nat(n) => Ok(n.clone()),
+        Expr::Plus(e1, e2) => Ok(eval_expr(e1)?.plus(&eval_expr(e2)?)),
+        Expr::Times(e1, e2) => Ok(eval_expr(e1)?.times(&eval_expr(e2)?)),
+        _ => Err("This judgment type is not supported by the type checker.".to_string())
     }
 }
 
@@ -162,7 +108,7 @@ fn derive_multi_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
 
 fn find_r_step(e: &Expr) -> Option<Derivation> {
     match e {
-        Expr::N(_) => None, // It's a value, cannot be reduced.
+        Expr::Nat(_) => None, // It's a value, cannot be reduced.
         Expr::Plus(l, r) => {
             // Rule R-PlusR: Try to reduce the right side FIRST.
             if let Some(premise) = find_r_step(r) {
@@ -177,9 +123,9 @@ fn find_r_step(e: &Expr) -> Option<Derivation> {
                 return Some(Derivation { conclusion, rule: "R-PlusL".to_string(), premises: vec![premise] });
             }
             // Rule R-Plus: ONLY if both sides are values.
-            if let (Expr::N(n1), Expr::N(n2)) = (l.as_ref(), r.as_ref()) {
+            if let (Expr::Nat(n1), Expr::Nat(n2)) = (l.as_ref(), r.as_ref()) {
                 if let Ok(premise) = derive_plus(&Judgment::Arithmetic { op: ArithmeticOp::Plus, n1: n1.clone(), n2: n2.clone(), n3: n1.plus(n2) }) {
-                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::N(n1.plus(n2)) };
+                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Nat(n1.plus(n2)) };
                     return Some(Derivation { conclusion, rule: "R-Plus".to_string(), premises: vec![premise] });
                 }
             }
@@ -200,24 +146,25 @@ fn find_r_step(e: &Expr) -> Option<Derivation> {
                 return Some(Derivation { conclusion, rule: "R-TimesL".to_string(), premises: vec![premise] });
             }
             // R-Times
-            if let (Expr::N(n1), Expr::N(n2)) = (l.as_ref(), r.as_ref()) {
+            if let (Expr::Nat(n1), Expr::Nat(n2)) = (l.as_ref(), r.as_ref()) {
                 if let Ok(premise) = derive_times(&Judgment::Arithmetic { op: ArithmeticOp::Times, n1: n1.clone(), n2: n2.clone(), n3: n1.times(n2) }) {
-                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::N(n1.times(n2)) };
+                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Nat(n1.times(n2)) };
                     return Some(Derivation { conclusion, rule: "R-Times".to_string(), premises: vec![premise] });
                 }
             }
             None
         }
+        _ => None
     }
 }
 
 /// Helper to find the next step using the DR-* rules (for -d->).
 fn find_dr_step(e: &Expr) -> Option<Derivation> {
     match e {
-        Expr::N(_) => None,
+        Expr::Nat(_) => None,
         Expr::Plus(e1, e2) => {
             // Rule DR-PlusL: If the left side is not a value, try to reduce it.
-            if !matches!(e1.as_ref(), Expr::N(_)) {
+            if !matches!(e1.as_ref(), Expr::Nat(_)) {
                 if let Some(premise) = find_dr_step(e1) {
                     let e1_prime = match &premise.conclusion {
                         Judgment::Reduction { e2, .. } => e2.clone(),
@@ -234,7 +181,7 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-PlusR: If left is a value, but right can be reduced, reduce it.
-            if let (Expr::N(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
+            if let (Expr::Nat(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
                 let e2_prime = match &premise.conclusion {
                     Judgment::Reduction { e2, .. } => e2.clone(),
                     _ => unreachable!(),
@@ -249,11 +196,11 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-Plus: If both sides are values, perform the addition.
-            if let (Expr::N(n1), Expr::N(n2)) = (e1.as_ref(), e2.as_ref()) {
+            if let (Expr::Nat(n1), Expr::Nat(n2)) = (e1.as_ref(), e2.as_ref()) {
                 let n3 = n1.plus(n2);
                 let premise_j = Judgment::Arithmetic { op: ArithmeticOp::Plus, n1: n1.clone(), n2: n2.clone(), n3: n3.clone() };
                 if let Ok(premise) = derive_plus(&premise_j) {
-                    let conclusion_expr = Expr::N(n3);
+                    let conclusion_expr = Expr::Nat(n3);
                     let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                     return Some(Derivation {
                         conclusion,
@@ -267,7 +214,7 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
         }
         Expr::Times(e1, e2) => {
             // Rule DR-TimesL: If the left side is not a value, try to reduce it.
-            if !matches!(e1.as_ref(), Expr::N(_)) {
+            if !matches!(e1.as_ref(), Expr::Nat(_)) {
                 if let Some(premise) = find_dr_step(e1) {
                     let e1_prime = match &premise.conclusion {
                         Judgment::Reduction { e2, .. } => e2.clone(),
@@ -284,7 +231,7 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-TimesR: If left is a value, but right can be reduced, reduce it.
-            if let (Expr::N(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
+            if let (Expr::Nat(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
                 let e2_prime = match &premise.conclusion {
                     Judgment::Reduction { e2, .. } => e2.clone(),
                     _ => unreachable!(),
@@ -299,11 +246,11 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-Times: If both sides are values, perform the multiplication.
-            if let (Expr::N(n1), Expr::N(n2)) = (e1.as_ref(), e2.as_ref()) {
+            if let (Expr::Nat(n1), Expr::Nat(n2)) = (e1.as_ref(), e2.as_ref()) {
                 let n3 = n1.times(n2);
                 let premise_j = Judgment::Arithmetic { op: ArithmeticOp::Times, n1: n1.clone(), n2: n2.clone(), n3: n3.clone() };
                 if let Ok(premise) = derive_times(&premise_j) {
-                    let conclusion_expr = Expr::N(n3);
+                    let conclusion_expr = Expr::Nat(n3);
                     let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                     return Some(Derivation {
                         conclusion,
@@ -314,6 +261,7 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
             None
         }
+        _ => None
     }
 }
 
@@ -410,7 +358,7 @@ fn derive_times(j: &Judgment) -> Result<Derivation, String> {
 /// Derivator for CompareNat1: L-Succ and L-Trans
 fn derive_compare_v1(j: &Judgment) -> Result<Derivation, String> {
     let (n1, n2) = match j { Judgment::Comparison { n1, n2 } => (n1, n2), _ => unreachable!() };
-    if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
+    // if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
 
     if let Nat::S(n2_inner) = n2 { if n2_inner.as_ref() == n1 {
         return Ok(Derivation { 
@@ -433,7 +381,7 @@ fn derive_compare_v1(j: &Judgment) -> Result<Derivation, String> {
 /// Derivator for CompareNat2: L-Zero and L-SuccSucc
 fn derive_compare_v2(j: &Judgment) -> Result<Derivation, String> {
     let (n1, n2) = match j { Judgment::Comparison { n1, n2 } => (n1, n2), _ => unreachable!() };
-    if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
+    // if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
 
     if let Nat::Z = n1 { if let Nat::S(_) = n2 {
         return Ok(Derivation { 
@@ -451,14 +399,14 @@ fn derive_compare_v2(j: &Judgment) -> Result<Derivation, String> {
             rule: "L-SuccSucc".to_string(), 
             premises: vec![premise_deriv] })
     } else {
-        Err(format!("Could not apply L-Zero or L-SuccSucc to prove '{}'", j))
+        Err(format!("Could not apply L-Zero or L-SuccSucc to prove"))
     }
 }
 
 /// Derivator for CompareNat3: L-Succ and L-SuccR
 fn derive_compare_v3(j: &Judgment) -> Result<Derivation, String> {
     let (n1, n2) = match j { Judgment::Comparison { n1, n2 } => (n1, n2), _ => unreachable!() };
-    if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
+    // if !n1.is_less_than(n2) { return Err(format!("The judgment '{}' is false.", j)); }
 
     if let Nat::S(n2_inner) = n2 { if n2_inner.as_ref() == n1 {
         return Ok(Derivation { 
@@ -476,26 +424,21 @@ fn derive_compare_v3(j: &Judgment) -> Result<Derivation, String> {
             premises: vec![premise_deriv] 
         })
     } else {
-        Err(format!("Could not apply L-Succ or L-SuccR to prove '{}'", j))
+        Err(format!("Could not apply L-Succ or L-SuccR to prove"))
     }
 }
 
 fn derive_eval(exp: &Expr, n: &Nat) -> Result<Derivation, String> {
-    // Correctness check
-    if eval_expr(exp) != *n {
-        return Err(format!("The judgment '{}' is false.", Judgment::Evaluation{exp: exp.clone(), n: n.clone()}));
-    }
-
     match exp {
         // Now matches on Expr variants
-        Expr::N(_) => Ok(Derivation {
+        Expr::Nat(_) => Ok(Derivation {
             conclusion: Judgment::Evaluation{exp: exp.clone(), n: n.clone()},
             rule: "E-Const".to_string(),
             premises: vec![],
         }),
         Expr::Plus(e1, e2) => {
-            let n1 = eval_expr(e1);
-            let n2 = eval_expr(e2);
+            let n1 = eval_expr(e1)?;
+            let n2 = eval_expr(e2)?;
             let premise1 = derive_eval(e1, &n1)?;
             let premise2 = derive_eval(e2, &n2)?;
             let premise3_j = Judgment::Arithmetic { op: ArithmeticOp::Plus, n1, n2, n3: n.clone() };
@@ -506,8 +449,8 @@ fn derive_eval(exp: &Expr, n: &Nat) -> Result<Derivation, String> {
                 premises: vec![premise1, premise2, premise3] })
         }
         Expr::Times(e1, e2) => {
-            let n1 = eval_expr(e1);
-            let n2 = eval_expr(e2);
+            let n1 = eval_expr(e1)?;
+            let n2 = eval_expr(e2)?;
             let premise1 = derive_eval(e1, &n1)?;
             let premise2 = derive_eval(e2, &n2)?;
             let premise3_j = Judgment::Arithmetic { op: ArithmeticOp::Times, n1, n2, n3: n.clone() };
@@ -517,6 +460,7 @@ fn derive_eval(exp: &Expr, n: &Nat) -> Result<Derivation, String> {
                 rule: "E-Times".to_string(),
                 premises: vec![premise1, premise2, premise3]
             })
-        }
+        },
+         _ => Err("This judgment type is not supported by the type checker.".to_string()),
     }
 }

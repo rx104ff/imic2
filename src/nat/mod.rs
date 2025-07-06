@@ -1,4 +1,4 @@
 pub mod nat;
 pub mod parser;
-pub mod ast;
+pub mod version;
 pub mod proof;

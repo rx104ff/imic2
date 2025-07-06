@@ -1,4 +1,4 @@
-use crate::nat::ast::{Nat, Expr, Judgment, ArithmeticOp, ReductionType};
+use crate::common::ast::{Nat, Expr, Judgment, ArithmeticOp, ReductionType};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {
@@ -57,7 +57,7 @@ impl Parser {
                 self.expect(Token::RParen)?;
                 Ok(exp)
             }
-            Some(Token::Z) | Some(Token::S) => Ok(Expr::N(self.parse_nat()?)),
+            Some(Token::Z) | Some(Token::S) => Ok(Expr::Nat(self.parse_nat()?)),
             _ => Err("Expected a Nat value or a parenthesized expression".to_string()),
         }
     }
@@ -116,7 +116,7 @@ impl Parser {
             // For these, the left-hand side must have been a single Nat value.
             _ => {
                 let n1 = match lhs_expr {
-                    Expr::N(n) => n,
+                    Expr::Nat(n) => n,
                     _ => return Err("Expected a single Nat value on the left side for 'plus', 'times', or 'is less than' judgments.".to_string()),
                 };
 

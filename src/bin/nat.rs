@@ -17,12 +17,12 @@ fn main() {
     };
 
     // Parse the optional mode string into our enum
-    let comparison_mode: Option<nat::ast::ComparisonMode> = match mode {
+    let comparison_mode: Option<nat::version::ComparisonMode> = match mode {
         None => None,
         Some(s) => match s.as_str() {
-            "CompareNat1" => Some(nat::ast::ComparisonMode::V1),
-            "CompareNat2" => Some(nat::ast::ComparisonMode::V2),
-            "CompareNat3" => Some(nat::ast::ComparisonMode::V3),
+            "CompareNat1" => Some(nat::version::ComparisonMode::V1),
+            "CompareNat2" => Some(nat::version::ComparisonMode::V2),
+            "CompareNat3" => Some(nat::version::ComparisonMode::V3),
             _ => {
                 eprintln!("Error: Unknown comparison mode '{}'", s);
                 return;

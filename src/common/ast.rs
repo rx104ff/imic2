@@ -19,6 +19,48 @@ pub enum Nat {
     S(Box<Nat>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReductionType {
+    Single, // →
+    Direct, // →d
+    Multi,  // →*
+}
+
+// An enum to represent the two types of arithmetic operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ArithmeticOp {
+    Plus,
+    Times,
+}
+
+// Helper methods to perform Peano arithmetic.
+// The derivator uses these to find intermediate values for premises.
+impl Nat {
+    pub fn plus(&self, other: &Nat) -> Nat {
+        match self {
+            Nat::Z => other.clone(),
+            Nat::S(n) => Nat::S(Box::new(n.plus(other))),
+        }
+    }
+
+    pub fn times(&self, other: &Nat) -> Nat {
+        match self {
+            Nat::Z => Nat::Z,
+            Nat::S(n) => n.times(other).plus(other),
+        }
+    }
+
+    pub fn is_less_than(&self, other: &Nat) -> bool {
+        match other {
+            Nat::Z => false, // Nothing is less than Z
+            Nat::S(other_inner) => match self {
+                Nat::Z => true, // Z is less than any S(n)
+                Nat::S(self_inner) => self_inner.is_less_than(other_inner),
+            },
+        }
+    }
+}
+
 // --- Value AST for the `eval` system ---
 // These are the runtime values produced by the evaluator.
 
@@ -116,14 +158,21 @@ pub enum Expr {
 // The Judgment enum can now represent a judgment from ANY of your language systems.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Judgment {
+   
+    // For Nat arithmetic
+    Arithmetic { op: ArithmeticOp, n1: Nat, n2: Nat, n3: Nat },
+
+    // For Nat comparison
+    Comparison { n1: Nat, n2: Nat },
+
+    // For Nat evaluation
+    Evaluation { exp: Expr, n: Nat },
+
+    // For Nat reduction
+    Reduction { r_type: ReductionType, e1: Expr, e2: Expr },
+    
     // For ML evaluation
     EvaluatesTo(Env, Expr), // Assuming Type can also represent ML values
-    
-    // For Nat arithmetic
-    Is(Expr, Type), // e.g., `1 plus 2 is 3`
-    
-    // For Nat reduction
-    ReducesTo(Expr, Expr, String), // e.g., `e1 ---> e2`
     
     // For Type Checking
     Infer(MonoTypeEnv, Expr, Type),
