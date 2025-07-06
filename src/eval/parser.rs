@@ -28,7 +28,7 @@ impl Parser {
     
     /// The unique entry point for the `eval` parser.
     /// It parses a judgment of the form `Γ ⊢ e evalto v`.
-    pub fn parse_program(&mut self) -> Result<Judgment, String> {
+    pub fn parse(&mut self) -> Result<Judgment, String> {
         let env = if let Some(Token::Ident(_)) = self.core().peek() {
             self.parse_env_list()
         } else {

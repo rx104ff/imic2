@@ -12,7 +12,7 @@ fn run_eval_test(version: LanguageVersion, program: &str) -> String {
 
     let tokens = common::tokenizer::tokenize(&full_input);
     let mut parser = Parser::new(tokens);
-    let judgment = match parser.parse_program() {
+    let judgment = match parser.parse() {
         Ok(j) => j,
         Err(e) => return format!("Parsing Error: {}", e),
     };
