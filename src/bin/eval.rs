@@ -1,9 +1,8 @@
 // src/main.rs
 use std::env;
-use std::io;
 
 use imic2::common;
-use imic2::eval::ast::LanguageVersion;
+use imic2::eval::version::LanguageVersion;
 use imic2::eval::eval::derive_judgement;
 use imic2::eval::parser::Parser;
 

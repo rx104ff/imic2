@@ -1,5 +1,5 @@
 use imic2::common;
-use imic2::eval::ast::LanguageVersion;
+use imic2::eval::version::LanguageVersion;
 use imic2::eval::parser::Parser;
 use insta::assert_snapshot;
 
