@@ -5,7 +5,7 @@ use insta::assert_snapshot;
 fn run_type_test(input: &str) -> String {
     let tokens = common::tokenizer::tokenize(input);
     let mut parser = infer::parser::Parser::new(tokens);
-    let judgment = match parser.parse_judgment() {
+    let judgment = match parser.parse() {
         Ok(j) => j,
         Err(e) => return format!("Parsing Error: {}", e),
     };

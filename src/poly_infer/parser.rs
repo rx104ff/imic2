@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::common::ast::{Var, Type, PolyTypeEnv, TyScheme, TypeVar, Judgment};
+use crate::common::ast::{Type, PolyTypeEnv, TyScheme, TypeVar, Judgment};
 use crate::common::parser::{ExpressionParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
@@ -15,16 +15,6 @@ pub struct Parser {
 impl ExpressionParser for Parser {
     fn core(&mut self) -> &mut ParserCore {
         &mut self.core
-    }
-
-    fn next_var(&mut self) -> Result<Var, String> {
-        match self.core.peek().cloned() {
-            Some(Token::Ident(name)) => {
-                self.core.advance();
-                Ok(Var(name))
-            }
-            _ => Err("Expected an identifier.".to_string()),
-        }
     }
 }
 
@@ -104,7 +94,7 @@ impl Parser {
         let mut env = PolyTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
-            let var = self.next_var()?;
+            let var = self.core.next_var()?;
             self.core.expect(Token::Colon)?;
             let scheme = self.parse_type_scheme()?;
             env.push((var, scheme));

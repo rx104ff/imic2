@@ -35,6 +35,16 @@ impl ParserCore {
             None => Err(format!("Expected token {:?}, but found end of input.", expected)),
         }
     }
+
+    pub fn next_var(&mut self) -> Result<Var, String> {
+        match self.peek().cloned() {
+            Some(Token::Ident(name)) => {
+                self.advance();
+                Ok(Var(name))
+            }
+            _ => Err("Expected an identifier.".to_string()),
+        }
+    }
 }
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
@@ -56,16 +66,6 @@ fn mark_expr_paren(expr: Expr) -> Expr {
 pub trait ExpressionParser {
     // Each implementor must provide access to its core and a way to get a variable.
     fn core(&mut self) -> &mut ParserCore;
-
-    fn next_var(&mut self) -> Result<Var, String> {
-        match self.core().peek().cloned() {
-            Some(Token::Ident(name)) => {
-                self.core().advance();
-                Ok(Var(name))
-            }
-            _ => Err("Expected an identifier.".to_string()),
-        }
-    }
     
     // All expression parsing methods are now default methods on this trait.
     // They operate on the required `core` method.
@@ -83,7 +83,7 @@ pub trait ExpressionParser {
         self.core().advance(); // consume 'let'
         if self.core().peek() == Some(&Token::Rec) {
             self.core().advance(); // consume 'rec'
-            let func_name = self.next_var()?;
+            let func_name = self.core().next_var()?;
             self.core().expect(Token::Equals)?;
             let body = self.parse_expr()?;
             self.core().expect(Token::In)?;
@@ -92,7 +92,7 @@ pub trait ExpressionParser {
                  Ok(Expr::LetRec(func_name, param, fun_body, Box::new(cont), false))
             } else { Err("Expected a function definition after 'let rec ='".to_string()) }
         } else {
-            let var = self.next_var()?;
+            let var = self.core().next_var()?;
             self.core().expect(Token::Equals)?;
             let bound_expr = self.parse_expr()?;
             self.core().expect(Token::In)?;
@@ -113,7 +113,7 @@ pub trait ExpressionParser {
 
     fn parse_fun_expr(&mut self) -> Result<Expr, String> {
         self.core().advance(); // consume 'fun'
-        let param = self.next_var()?;
+        let param = self.core().next_var()?;
         self.core().expect(Token::Arrow)?;
         let body = self.parse_expr()?;
         Ok(Expr::Fun(param, Box::new(body), false))
@@ -127,9 +127,9 @@ pub trait ExpressionParser {
         self.core().expect(Token::Arrow)?;
         let nil_case = self.parse_expr()?;
         self.core().expect(Token::Bar)?;
-        let head_var = self.next_var()?;
+        let head_var = self.core().next_var()?;
         self.core().expect(Token::ColonColon)?;
-        let tail_var = self.next_var()?;
+        let tail_var = self.core().next_var()?;
         self.core().expect(Token::Arrow)?;
         let cons_case = self.parse_expr()?;
         Ok(Expr::Match(Box::new(expr_to_match), Box::new(nil_case), head_var, tail_var, Box::new(cons_case), false))
