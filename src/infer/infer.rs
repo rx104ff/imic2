@@ -2,7 +2,7 @@ use std::collections::{BTreeMap};
 use crate::common::ast::{MonoTypeEnv};
 use crate::common::ast::{Expr, Op, Type, TypeVar, Judgment};
 use crate::infer::proof::Derivation;
-use crate::infer::unifier::{unify, apply_sub, Substitution};
+use crate::common::unifier::{unify, apply_sub, Substitution};
 
 // The context for inference, holding substitutions and the type environment.
 struct InferContext {

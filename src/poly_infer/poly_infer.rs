@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use crate::common::ast::{Expr, Op, Type, TypeVar, TyScheme, PolyTypeEnv, Judgment};
 use crate::poly_infer::proof::Derivation;
-use crate::poly_infer::unifier::{unify, apply_sub, Substitution};
+use crate::common::unifier::{unify, apply_sub, Substitution};
 
 // The context for inference, holding substitutions.
 struct InferContext {
@@ -209,7 +209,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &Expr) -> Result<Der
 
             let d3 = infer_expr(ctx, &new_env, e3)?;
             let t_cons = apply_sub(&d3.ty, &ctx.sub);
-            
+
             ctx.sub = unify(&t_nil, &t_cons, &ctx.sub)?;
             Ok(Derivation {
                 env: env.clone(), expr: e.clone(), ty: t_nil,
