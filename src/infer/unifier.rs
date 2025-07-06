@@ -52,12 +52,10 @@ fn unify_variable(tv: &TypeVar, t: &Type, sub: &Substitution) -> Result<Substitu
         return Ok(new_sub);
     }
 
-    // Perform the occurs check on the fully substituted type.
     if occurs(tv, t, sub) {
         return Err(format!("Recursive type detected: {} occurs in {}", tv, t));
     }
 
-    // Otherwise, add the new substitution.
     let mut new_sub = sub.clone();
     new_sub.insert(tv.clone(), t.clone());
     Ok(new_sub)
@@ -75,10 +73,8 @@ pub fn apply_sub(t: &Type, sub: &Substitution) -> Type {
 
 /// Checks if a type variable occurs within a type (to prevent infinite types).
 fn occurs(tv: &TypeVar, t: &Type, sub: &Substitution) -> bool {
-    // First, apply substitutions to get the most concrete form of the type.
     let t = apply_sub(t, sub);
     match t {
-        // Now, check for the variable.
         Type::Var(tv2) => tv == &tv2,
         Type::Fun(p, r) => occurs(tv, &p, sub) || occurs(tv, &r, sub),
         Type::List(t) => occurs(tv, &t, sub),

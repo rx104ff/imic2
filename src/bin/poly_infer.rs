@@ -1,5 +1,5 @@
 use std::env;
-use imic2::{common, poly_infer}; 
+use imic2::{common::{self}, poly_infer}; 
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -16,7 +16,7 @@ fn main() {
 
     // 2. Parse the tokens into a Judgment struct.
     let mut parser = poly_infer::parser::Parser::new(tokens);
-    let (judgment, used_names) = match parser.parse_judgment() {
+    let (judgment, used_names) = match parser.parse() {
         Ok(j) => j,
         Err(e) => {
             eprintln!("Parsing Error: {}", e);

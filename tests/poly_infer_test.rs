@@ -1,4 +1,4 @@
-use imic2::{common, poly_infer};
+use imic2::{common::{self}, poly_infer};
 use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the polymorphic type inferrer.
@@ -6,7 +6,7 @@ use insta::assert_snapshot;
 fn run_poly_test(input: &str) -> String {
     let tokens = common::tokenizer::tokenize(input);
     let mut parser = poly_infer::parser::Parser::new(tokens);
-    let (judgment, used_names) = match parser.parse_judgment() {
+    let (judgment, used_names) = match parser.parse() {
         Ok(j) => j,
         Err(e) => return format!("Parsing Error: {}", e),
     };

@@ -27,8 +27,8 @@ pub fn unify(t1: &Type, t2: &Type, sub: &Substitution) -> Result<Substitution, S
 }
 
 /// Unifies a variable with a type, performing the crucial "occurs check".
-/// This version is corrected to be deterministic when unifying two variables.
 fn unify_variable(tv: &TypeVar, t: &Type, sub: &Substitution) -> Result<Substitution, String> {
+    // If the variable is already in the substitution, we work with its concrete type.
     if let Type::Var(tv2) = t {
         if tv.id == tv2.id {
             return Ok(sub.clone());
