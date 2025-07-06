@@ -1,4 +1,4 @@
-use crate::common::{ast::{Expr, Op, Type, Var}, tokenizer::Token};
+use crate::common::{ast::{Env, Expr, Op, Type, Value, Var}, tokenizer::Token};
 
 pub struct ParserCore {
     tokens: Vec<Token>,
@@ -61,11 +61,158 @@ fn mark_expr_paren(expr: Expr) -> Expr {
     }
 }
 
+/// A trait specific to the `eval` system for parsing runtime values,
+/// including complex closures with environments.
+pub trait ValueParser : ExpressionParser {
+    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr, String>;
+
+    fn parse_value(&mut self) -> Result<Value, String> {
+        self.parse_list_value(false)
+    }
+
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value, String> {
+        let left = self.parse_single_value()?;
+        self.parse_list_tail(left, paren)
+    }
+
+    fn parse_list_tail(&mut self, left: Value, paren: bool) -> Result<Value, String> {
+        if self.core().peek() == Some(&Token::ColonColon) {
+            self.core().advance();
+            let right = self.parse_list_value(false)?;
+            Ok(Value::Cons(Box::new(left), Box::new(right), paren))
+        } else {
+            Ok(left)
+        }
+    }
+
+    fn parse_single_value(&mut self) -> Result<Value, String> {
+        match self.core().peek().cloned() {
+            Some(Token::Int(n)) => {
+                self.core().advance();
+                Ok(Value::Int(n))
+            }
+            Some(Token::Bool(b)) => {
+                self.core().advance();
+                Ok(Value::Bool(b))
+            }
+            Some(Token::LParen) => {
+                self.core().advance();
+                // This logic is complex because it has to look ahead to see
+                // if it's a closure `(env)[fun...]` or a parenthesized value `(1::[])`.
+                let saved_pos = self.core().pos;
+                let env_result = self.parse_env_list(); // Try to parse an env
+
+                if let Ok(env) = env_result {
+                    if self.core().peek() == Some(&Token::RParen) {
+                        self.core().advance();
+                        if self.core().peek() == Some(&Token::LBracket) {
+                            self.core().advance();
+                             match self.core().peek() {
+                                Some(Token::Fun) => return self.parse_func_val(env),
+                                Some(Token::Rec) => return self.parse_rec_func_val(env),
+                                _ => {} // Fall through
+                            }
+                        }
+                    }
+                }
+                
+                // If it wasn't a closure, rewind and parse as a simple value.
+                self.core().pos = saved_pos;
+                let inner = self.parse_value()?;
+                self.core().expect(Token::RParen)?;
+                match inner {
+                    Value::Cons(l, r, _) => Ok(Value::Cons(l, r, true)),
+                    _ => Ok(inner),
+                }
+            }
+            Some(Token::Nil) => {
+                self.core().advance();
+                Ok(Value::Nil)
+            }
+            _ => Err(format!("Invalid value syntax: {:?}", self.core().peek())),
+        }
+    }
+    
+    fn parse_env_list(&mut self) -> Result<Env, String> {
+        let mut bindings = vec![];
+        if self.core().peek() == Some(&Token::RParen) || self.core().peek() == Some(&Token::Turnstile) {
+            return Ok(bindings);
+        }
+        loop {
+            let var = self.core().next_var()?;
+            self.core().expect(Token::Equals)?;
+            let val = self.parse_value()?;
+            bindings.push((var, val));
+            if self.core().peek() == Some(&Token::Comma) {
+                self.core().advance();
+            } else {
+                break;
+            }
+        }
+        Ok(bindings)
+    }
+    
+    // These helpers are specific to parsing closure values.
+    fn collect_tokens_until_rbracket(&mut self) -> Vec<Token> {
+       let mut tokens = vec![];
+        let mut depth = 1;
+        while let Some(token) = self.core().peek().cloned() {
+            self.core().advance();
+            match token {
+                Token::LBracket => {
+                    depth += 1;
+                }
+                Token::RBracket => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            tokens.push(token);
+        }
+        tokens
+    }
+
+    fn parse_func_val(&mut self, env: Env) -> Result<Value, String> {
+        self.core().expect(Token::Fun)?;
+        let param = self.core().next_var()?;
+        self.core().expect(Token::Arrow)?;
+        let body_tokens = self.collect_tokens_until_rbracket();
+        let body = self.parse_inner_expr(body_tokens)?;
+        Ok(Value::FunVal(param, Box::new(body), env, false))
+    }
+
+    fn parse_rec_func_val(&mut self, env: Env) -> Result<Value, String> {
+        self.core().expect(Token::Rec)?;
+        let name = self.core().next_var()?;
+        self.core().expect(Token::Equals)?;
+        self.core().expect(Token::Fun)?;
+        let param = self.core().next_var()?;
+        self.core().expect(Token::Arrow)?;
+        let body_tokens = self.collect_tokens_until_rbracket();
+        let body = self.parse_inner_expr(body_tokens)?;
+        Ok(Value::RecFunVal(name, param, Box::new(body), env, false))
+    }
+}
+
 
 /// A trait that provides default implementations for parsing all common expressions.
 pub trait ExpressionParser {
     // Each implementor must provide access to its core and a way to get a variable.
     fn core(&mut self) -> &mut ParserCore;
+
+    fn parse_int(&mut self) -> Result<Expr, String> {
+        let token = self.core().peek().cloned();
+        match token {
+            Some(Token::Int(n)) => {
+                self.core().advance();
+                Ok(Expr::Int(n))
+            }
+            _ => panic!("Expected int"),
+        }
+    }
     
     // All expression parsing methods are now default methods on this trait.
     // They operate on the required `core` method.
@@ -194,17 +341,40 @@ pub trait ExpressionParser {
 
     fn parse_atom(&mut self) -> Result<Expr, String> {
         match self.core().peek().cloned() {
-            Some(Token::Int(n)) => { self.core().advance(); Ok(Expr::Int(n)) }
-            Some(Token::Bool(b)) => { self.core().advance(); Ok(Expr::Bool(b)) }
-            Some(Token::Ident(name)) => { self.core().advance(); Ok(Expr::Var(Var(name))) }
-            Some(Token::Nil) => { self.core().advance(); Ok(Expr::Nil) }
+            Some(Token::Minus) => {
+                self.core().advance();
+                match self.core().peek().cloned() {
+                    Some(Token::Int(n)) => {
+                        self.core().advance();
+                        Ok(Expr::Int(-(n)))
+                    }
+                    _ => {
+                        // Unary minus should apply to the next full term, not just an atom.
+                        let expr = self.parse_app()?;
+                        Ok(Expr::BinOp(Box::new(Expr::Int(0)), Op::Sub, Box::new(expr), false))
+                    }
+                }
+            }
+            Some(Token::If) => self.parse_if_expr(),
+            Some(Token::Let) => self.parse_let_expr(),
+            Some(Token::Ident(_)) => Ok(Expr::Var(self.core().next_var()?)),
+            Some(Token::Int(_)) => self.parse_int(),
+            Some(Token::Bool(b)) => { 
+                self.core().advance(); Ok(Expr::Bool(b)) 
+            }
             Some(Token::LParen) => {
                 self.core().advance();
                 let expr = self.parse_expr()?;
                 self.core().expect(Token::RParen)?;
                 Ok(mark_expr_paren(expr))
             }
-            _ => Err("Unexpected token found at atomic level.".to_string())
+            Some(Token::Fun) => self.parse_fun_expr(),
+            Some(Token::Nil) => {
+                self.core().advance();
+                Ok(Expr::Nil)
+            },
+            Some(Token::Match) => self.parse_match_expr(),
+            _ => Err("Unexpected token found at atomic level.".to_string()),
         }
     }
 }
