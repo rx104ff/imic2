@@ -1,5 +1,5 @@
 use crate::common::ast::{Type, MonoTypeEnv, Judgment};
-use crate::common::parser::{ExpressionParser, ParserCore, TypeParser};
+use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 /// A recursive descent parser for the TypingML4 language.
@@ -7,7 +7,13 @@ pub struct Parser {
     core: ParserCore,
 }
 
-impl ExpressionParser for Parser {
+impl HasParseMode for Parser {
+    type Mode = NamedMode;
+}
+
+impl ExpressionParser<
+    <<Parser as HasParseMode>::Mode as ParseMode>::Variable
+> for Parser {
     fn core(&mut self) -> &mut ParserCore {
         &mut self.core
     }

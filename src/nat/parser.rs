@@ -1,4 +1,4 @@
-use crate::common::ast::{Nat, Expr, Judgment, ArithmeticOp, ReductionType};
+use crate::common::ast::{ArithmeticOp, Expr, Judgment, NamedExpr, Nat, ReductionType};
 use crate::common::parser::ParserCore;
 use crate::common::tokenizer::Token;
 
@@ -28,7 +28,7 @@ impl Parser {
         }
     }
 
-    fn parse_factor(&mut self) -> Result<Expr, String> {
+    fn parse_factor(&mut self) -> Result<NamedExpr, String> {
         match self.core.peek() {
             Some(Token::LParen) => {
                 self.core.advance();
@@ -41,7 +41,7 @@ impl Parser {
         }
     }
 
-    fn parse_term(&mut self) -> Result<Expr, String> {
+    fn parse_term(&mut self) -> Result<NamedExpr, String> {
         let mut lhs = self.parse_factor()?;
         while let Some(Token::Star) = self.core.peek() {
             self.core.advance(); // Consume '*'
@@ -51,7 +51,7 @@ impl Parser {
         Ok(lhs)
     }
 
-    pub fn parse_expr(&mut self) -> Result<Expr, String> {
+    pub fn parse_expr(&mut self) -> Result<NamedExpr, String> {
         let mut lhs = self.parse_term()?;
         while let Some(Token::Plus) = self.core.peek() {
             self.core.advance(); // Consume '+'

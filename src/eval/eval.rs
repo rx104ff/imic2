@@ -1,7 +1,7 @@
 // src/ml4.rs
 
 use crate::eval::version::{LanguageVersion};
-use crate::common::ast::{Env, Expr, Judgment, Op, Value, Var};
+use crate::common::ast::{Expr, Judgment, NamedEnv, NamedExpr, Op, Value, Var};
 use crate::eval::proof::{Derivation, Axiom};
 
 use std::fmt;
@@ -47,11 +47,11 @@ impl Axiom for Derivation {
         }
 
         if let Expr::BinOp(lhs_expr, op, rhs_expr, _) = &self.expr {
-            let lhs_val = match &**lhs_expr {
+            let lhs_val:Value<Var> = match &**lhs_expr {
                 Expr::Int(n) => Value::Int(*n),
                 _ => return None,
             };
-            let rhs_val = match &**rhs_expr {
+            let rhs_val:Value<Var> = match &**rhs_expr {
                 Expr::Int(n) => Value::Int(*n),
                 _ => return None,
             };
@@ -78,7 +78,7 @@ impl Axiom for Derivation {
     }
 }
 
-fn format_env(env: &Env, version: LanguageVersion) -> String {
+fn format_env(env: &NamedEnv, version: LanguageVersion) -> String {
     if version == LanguageVersion::ML1 {
         return String::new();
     }
@@ -104,7 +104,7 @@ pub fn derive_judgement(judgment: &Judgment, version: LanguageVersion) -> Result
     }
 }
 
-pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Result<Derivation, String> {
+pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Result<Derivation, String> {
     match expr {
         Expr::Int(i) => Ok(Derivation {
             env: env.clone(),
@@ -127,7 +127,7 @@ pub fn derive(env: &Env, expr: &Expr, version: LanguageVersion) -> Result<Deriva
                 panic!("Error: Variables are not supported in ML1 (found: {})", x.0);
             }
             LanguageVersion::ML2 | LanguageVersion::ML3 => {
-                fn derive_var_recursive(env: &Env, current_expr: &Expr, x: &Var, version: LanguageVersion) -> Derivation {
+                fn derive_var_recursive(env: &NamedEnv, current_expr: &NamedExpr, x: &Var, version: LanguageVersion) -> Derivation {
                     if env.is_empty() {
                         panic!("Unbound variable: {}", x.0);
                     }

@@ -65,16 +65,29 @@ impl Nat {
 // These are the runtime values produced by the evaluator.
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
+pub enum Value<E> {
     Int(i64),
     Bool(bool),
     Nil,
-    Cons(Box<Value>, Box<Value>, bool),
-    FunVal(Var, Box<Expr>, Vec<(Var, Value)>, bool),
-    RecFunVal(Var, Var, Box<Expr>, Vec<(Var, Value)>, bool),
+    Cons(Box<Value<E>>, Box<Value<E>>, bool),
+    FunVal(Var, Box<E>, Vec<(Var, Value<E>)>, bool),
+    RecFunVal(Var, Var, Box<E>, Vec<(Var, Value<E>)>, bool),
 }
 
-pub type Env = Vec<(Var, Value)>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DBIndex(pub usize);
+
+// The environment for translation is a list of variable names in scope.
+pub type NamelessEnv = Vec<NamelessValue>;
+
+pub type NamedExpr = Expr<Var>;
+pub type NamelessExpr = Expr<DBIndex>;
+
+// We can now create convenient type aliases for our specific value types.
+pub type NamedValue = Value<NamedExpr>;
+pub type NamelessValue = Value<NamelessExpr>;
+
+pub type NamedEnv = Vec<(Var, NamedValue)>;
 
 // --- Types for Type Systems (TypingML4 & PolyTypingML4) ---
 
@@ -131,26 +144,26 @@ pub type PolyTypeEnv = Vec<(Var, TyScheme)>;
 // --- Universal Expression AST ---
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub enum Expr<V> {
     // Literals for ML, Nat, and Type systems
     Int(i64),
     Bool(bool),
     Nat(Nat),
-    Var(Var),
+    Var(V),
     Nil,
     
     // ML & Type System Expressions
-    Let(Var, Box<Expr>, Box<Expr>, bool),
-    LetRec(Var, Var, Box<Expr>, Box<Expr>, bool),
-    Fun(Var, Box<Expr>, bool),
-    App(Box<Expr>, Box<Expr>, bool),
-    If(Box<Expr>, Box<Expr>, Box<Expr>, bool),
-    BinOp(Box<Expr>, Op, Box<Expr>, bool),
-    Match(Box<Expr>, Box<Expr>, Var, Var, Box<Expr>, bool),
+    Let(Var, Box<Expr<V>>, Box<Expr<V>>, bool),
+    LetRec(Var, Var, Box<Expr<V>>, Box<Expr<V>>, bool),
+    Fun(Var, Box<Expr<V>>, bool),
+    App(Box<Expr<V>>, Box<Expr<V>>, bool),
+    If(Box<Expr<V>>, Box<Expr<V>>, Box<Expr<V>>, bool),
+    BinOp(Box<Expr<V>>, Op, Box<Expr<V>>, bool),
+    Match(Box<Expr<V>>, Box<Expr<V>>, Var, Var, Box<Expr<V>>, bool),
     
     // Nat Expression extensions
-    Plus(Box<Expr>, Box<Expr>),
-    Times(Box<Expr>, Box<Expr>),
+    Plus(Box<Expr<V>>, Box<Expr<V>>),
+    Times(Box<Expr<V>>, Box<Expr<V>>),
 }
 
 // --- Universal Judgment AST ---
@@ -166,19 +179,19 @@ pub enum Judgment {
     Comparison { n1: Nat, n2: Nat },
 
     // For Nat evaluation
-    Evaluation { exp: Expr, n: Nat },
+    Evaluation { exp: Expr<Var>, n: Nat },
 
     // For Nat reduction
-    Reduction { r_type: ReductionType, e1: Expr, e2: Expr },
+    Reduction { r_type: ReductionType, e1: NamedExpr, e2: NamedExpr },
     
     // For ML evaluation
-    EvaluatesTo(Env, Expr), // Assuming Type can also represent ML values
+    EvaluatesTo(NamedEnv, NamedExpr), // Assuming Type can also represent ML values
     
     // For Type Checking
-    Infer(MonoTypeEnv, Expr, Type),
+    Infer(MonoTypeEnv, NamedExpr, Type),
     
     // For Polymorphic Inference
-    PolyInfer(PolyTypeEnv, Expr, Type),
+    PolyInfer(PolyTypeEnv, NamedExpr, Type),
 }
 
 // --- All Display and Helper Implementations ---
@@ -191,7 +204,7 @@ impl fmt::Display for Nat {
     }
 }
 
-impl fmt::Display for Value {
+impl<E> fmt::Display for Value<E> where E: std::fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{}", i),
@@ -240,7 +253,13 @@ impl fmt::Display for Op {
     }
 }
 
-impl fmt::Display for Expr {
+impl fmt::Display for DBIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl<E> fmt::Display for Expr<E> where E: std::fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Nat(n) => write!(f, "{}", n),
@@ -248,7 +267,7 @@ impl fmt::Display for Expr {
             Expr::Times(e1, e2) => write!(f, "({} * {})", e1, e2),
             Expr::Int(n) => write!(f, "{}", n),
             Expr::Bool(b) => write!(f, "{}", b),
-            Expr::Var(v) => write!(f, "{}", v.0),
+            Expr::Var(v) => write!(f, "{}", v),
             Expr::Nil => write!(f, "[]"),
             Expr::Let(x, e1, e2, is_paren) => {
                 let s = format!("let {} = {} in {}", x, e1, e2);

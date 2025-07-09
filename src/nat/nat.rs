@@ -1,4 +1,4 @@
-use crate::common::ast::{ArithmeticOp, Judgment, Nat, Expr, ReductionType};
+use crate::common::ast::{ArithmeticOp, Judgment, Nat, NamedExpr, ReductionType};
 use crate::nat::version::{ComparisonMode};
 use crate::nat::proof::Derivation;
 
@@ -28,24 +28,24 @@ pub fn derive(j: &Judgment, mode: Option<ComparisonMode>) -> Result<Derivation, 
     }
 }
 
-fn eval_expr(exp: &Expr) -> Result<Nat, String> {
+fn eval_expr(exp: &NamedExpr) -> Result<Nat, String> {
     match exp {
-        Expr::Nat(n) => Ok(n.clone()),
-        Expr::Plus(e1, e2) => Ok(eval_expr(e1)?.plus(&eval_expr(e2)?)),
-        Expr::Times(e1, e2) => Ok(eval_expr(e1)?.times(&eval_expr(e2)?)),
+        NamedExpr::Nat(n) => Ok(n.clone()),
+        NamedExpr::Plus(e1, e2) => Ok(eval_expr(e1)?.plus(&eval_expr(e2)?)),
+        NamedExpr::Times(e1, e2) => Ok(eval_expr(e1)?.times(&eval_expr(e2)?)),
         _ => Err("This judgment type is not supported by the type checker.".to_string())
     }
 }
 
 // Type-safe helper to get the resulting expression from a reduction's conclusion.
-fn get_conclusion_expr(j: &Judgment) -> Expr {
+fn get_conclusion_expr(j: &Judgment) -> NamedExpr {
     match j {
         Judgment::Reduction { e2, .. } => e2.clone(),
         _ => unreachable!("This helper should only be called on reduction judgments."),
     }
 }
 
-fn derive_single_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
+fn derive_single_step(e1: &NamedExpr, e2: &NamedExpr) -> Result<Derivation, String> {
     if let Some(derivation) = find_r_step(e1) {
         let derived_e2 = get_conclusion_expr(&derivation.conclusion);
         if derived_e2 == *e2 { Ok(derivation) }
@@ -53,7 +53,7 @@ fn derive_single_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
     } else { Err(format!("Cannot reduce expression '{}' because it is already a value.", e1)) }
 }
 
-fn derive_direct_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
+fn derive_direct_step(e1: &NamedExpr, e2: &NamedExpr) -> Result<Derivation, String> {
     if let Some(derivation) = find_dr_step(e1) {
         let derived_e2 = get_conclusion_expr(&derivation.conclusion);
         if derived_e2 == *e2 { Ok(derivation) }
@@ -61,7 +61,7 @@ fn derive_direct_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
     } else { Err(format!("Cannot directly reduce expression '{}'.", e1)) }
 }
 
-fn derive_multi_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
+fn derive_multi_step(e1: &NamedExpr, e2: &NamedExpr) -> Result<Derivation, String> {
     // The conclusion for the judgment we are currently trying to prove.
     let conclusion = Judgment::Reduction { r_type: ReductionType::Multi, e1: e1.clone(), e2: e2.clone() };
 
@@ -106,49 +106,49 @@ fn derive_multi_step(e1: &Expr, e2: &Expr) -> Result<Derivation, String> {
     Err(format!("Cannot reduce '{}' any further, but it does not equal target '{}'.", e1, e2))
 }
 
-fn find_r_step(e: &Expr) -> Option<Derivation> {
+fn find_r_step(e: &NamedExpr) -> Option<Derivation> {
     match e {
-        Expr::Nat(_) => None, // It's a value, cannot be reduced.
-        Expr::Plus(l, r) => {
+        NamedExpr::Nat(_) => None, // It's a value, cannot be reduced.
+        NamedExpr::Plus(l, r) => {
             // Rule R-PlusR: Try to reduce the right side FIRST.
             if let Some(premise) = find_r_step(r) {
                 let r_prime = get_conclusion_expr(&premise.conclusion);
-                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Plus(l.clone(), Box::new(r_prime)) };
+                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: NamedExpr::Plus(l.clone(), Box::new(r_prime)) };
                 return Some(Derivation { conclusion, rule: "R-PlusR".to_string(), premises: vec![premise] });
             }
             // Rule R-PlusL: ONLY if the right side is a value, try to reduce the left side.
             if let Some(premise) = find_r_step(l) {
                 let l_prime = get_conclusion_expr(&premise.conclusion);
-                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Plus(Box::new(l_prime), r.clone()) };
+                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: NamedExpr::Plus(Box::new(l_prime), r.clone()) };
                 return Some(Derivation { conclusion, rule: "R-PlusL".to_string(), premises: vec![premise] });
             }
             // Rule R-Plus: ONLY if both sides are values.
-            if let (Expr::Nat(n1), Expr::Nat(n2)) = (l.as_ref(), r.as_ref()) {
+            if let (NamedExpr::Nat(n1), NamedExpr::Nat(n2)) = (l.as_ref(), r.as_ref()) {
                 if let Ok(premise) = derive_plus(&Judgment::Arithmetic { op: ArithmeticOp::Plus, n1: n1.clone(), n2: n2.clone(), n3: n1.plus(n2) }) {
-                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Nat(n1.plus(n2)) };
+                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: NamedExpr::Nat(n1.plus(n2)) };
                     return Some(Derivation { conclusion, rule: "R-Plus".to_string(), premises: vec![premise] });
                 }
             }
             None
         }
-        Expr::Times(l, r) => {
+        NamedExpr::Times(l, r) => {
             // Assume Times also follows a right-to-left order for consistency.
             // R-TimesR
             if let Some(premise) = find_r_step(r) {
                 let r_prime = get_conclusion_expr(&premise.conclusion);
-                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Times(l.clone(), Box::new(r_prime)) };
+                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: NamedExpr::Times(l.clone(), Box::new(r_prime)) };
                 return Some(Derivation { conclusion, rule: "R-TimesR".to_string(), premises: vec![premise] });
             }
             // R-TimesL
             if let Some(premise) = find_r_step(l) {
                 let l_prime = get_conclusion_expr(&premise.conclusion);
-                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Times(Box::new(l_prime), r.clone()) };
+                let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: NamedExpr::Times(Box::new(l_prime), r.clone()) };
                 return Some(Derivation { conclusion, rule: "R-TimesL".to_string(), premises: vec![premise] });
             }
             // R-Times
-            if let (Expr::Nat(n1), Expr::Nat(n2)) = (l.as_ref(), r.as_ref()) {
+            if let (NamedExpr::Nat(n1), NamedExpr::Nat(n2)) = (l.as_ref(), r.as_ref()) {
                 if let Ok(premise) = derive_times(&Judgment::Arithmetic { op: ArithmeticOp::Times, n1: n1.clone(), n2: n2.clone(), n3: n1.times(n2) }) {
-                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: Expr::Nat(n1.times(n2)) };
+                    let conclusion = Judgment::Reduction { r_type: ReductionType::Single, e1: e.clone(), e2: NamedExpr::Nat(n1.times(n2)) };
                     return Some(Derivation { conclusion, rule: "R-Times".to_string(), premises: vec![premise] });
                 }
             }
@@ -159,18 +159,18 @@ fn find_r_step(e: &Expr) -> Option<Derivation> {
 }
 
 /// Helper to find the next step using the DR-* rules (for -d->).
-fn find_dr_step(e: &Expr) -> Option<Derivation> {
+fn find_dr_step(e: &NamedExpr) -> Option<Derivation> {
     match e {
-        Expr::Nat(_) => None,
-        Expr::Plus(e1, e2) => {
+        NamedExpr::Nat(_) => None,
+        NamedExpr::Plus(e1, e2) => {
             // Rule DR-PlusL: If the left side is not a value, try to reduce it.
-            if !matches!(e1.as_ref(), Expr::Nat(_)) {
+            if !matches!(e1.as_ref(), NamedExpr::Nat(_)) {
                 if let Some(premise) = find_dr_step(e1) {
                     let e1_prime = match &premise.conclusion {
                         Judgment::Reduction { e2, .. } => e2.clone(),
                         _ => unreachable!(),
                     };
-                    let conclusion_expr = Expr::Plus(Box::new(e1_prime), e2.clone());
+                    let conclusion_expr = NamedExpr::Plus(Box::new(e1_prime), e2.clone());
                     let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                     return Some(Derivation {
                         conclusion,
@@ -181,12 +181,12 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-PlusR: If left is a value, but right can be reduced, reduce it.
-            if let (Expr::Nat(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
+            if let (NamedExpr::Nat(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
                 let e2_prime = match &premise.conclusion {
                     Judgment::Reduction { e2, .. } => e2.clone(),
                     _ => unreachable!(),
                 };
-                let conclusion_expr = Expr::Plus(e1.clone(), Box::new(e2_prime));
+                let conclusion_expr = NamedExpr::Plus(e1.clone(), Box::new(e2_prime));
                 let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                 return Some(Derivation {
                     conclusion,
@@ -196,11 +196,11 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-Plus: If both sides are values, perform the addition.
-            if let (Expr::Nat(n1), Expr::Nat(n2)) = (e1.as_ref(), e2.as_ref()) {
+            if let (NamedExpr::Nat(n1), NamedExpr::Nat(n2)) = (e1.as_ref(), e2.as_ref()) {
                 let n3 = n1.plus(n2);
                 let premise_j = Judgment::Arithmetic { op: ArithmeticOp::Plus, n1: n1.clone(), n2: n2.clone(), n3: n3.clone() };
                 if let Ok(premise) = derive_plus(&premise_j) {
-                    let conclusion_expr = Expr::Nat(n3);
+                    let conclusion_expr = NamedExpr::Nat(n3);
                     let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                     return Some(Derivation {
                         conclusion,
@@ -212,15 +212,15 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             
             None
         }
-        Expr::Times(e1, e2) => {
+        NamedExpr::Times(e1, e2) => {
             // Rule DR-TimesL: If the left side is not a value, try to reduce it.
-            if !matches!(e1.as_ref(), Expr::Nat(_)) {
+            if !matches!(e1.as_ref(), NamedExpr::Nat(_)) {
                 if let Some(premise) = find_dr_step(e1) {
                     let e1_prime = match &premise.conclusion {
                         Judgment::Reduction { e2, .. } => e2.clone(),
                         _ => unreachable!(),
                     };
-                    let conclusion_expr = Expr::Times(Box::new(e1_prime), e2.clone());
+                    let conclusion_expr = NamedExpr::Times(Box::new(e1_prime), e2.clone());
                     let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                     return Some(Derivation {
                         conclusion,
@@ -231,12 +231,12 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-TimesR: If left is a value, but right can be reduced, reduce it.
-            if let (Expr::Nat(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
+            if let (NamedExpr::Nat(_), Some(premise)) = (e1.as_ref(), find_dr_step(e2)) {
                 let e2_prime = match &premise.conclusion {
                     Judgment::Reduction { e2, .. } => e2.clone(),
                     _ => unreachable!(),
                 };
-                let conclusion_expr = Expr::Times(e1.clone(), Box::new(e2_prime));
+                let conclusion_expr = NamedExpr::Times(e1.clone(), Box::new(e2_prime));
                 let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                 return Some(Derivation {
                     conclusion,
@@ -246,11 +246,11 @@ fn find_dr_step(e: &Expr) -> Option<Derivation> {
             }
 
             // Rule DR-Times: If both sides are values, perform the multiplication.
-            if let (Expr::Nat(n1), Expr::Nat(n2)) = (e1.as_ref(), e2.as_ref()) {
+            if let (NamedExpr::Nat(n1), NamedExpr::Nat(n2)) = (e1.as_ref(), e2.as_ref()) {
                 let n3 = n1.times(n2);
                 let premise_j = Judgment::Arithmetic { op: ArithmeticOp::Times, n1: n1.clone(), n2: n2.clone(), n3: n3.clone() };
                 if let Ok(premise) = derive_times(&premise_j) {
-                    let conclusion_expr = Expr::Nat(n3);
+                    let conclusion_expr = NamedExpr::Nat(n3);
                     let conclusion = Judgment::Reduction { r_type: ReductionType::Direct, e1: e.clone(), e2: conclusion_expr };
                     return Some(Derivation {
                         conclusion,
@@ -428,15 +428,15 @@ fn derive_compare_v3(j: &Judgment) -> Result<Derivation, String> {
     }
 }
 
-fn derive_eval(exp: &Expr, n: &Nat) -> Result<Derivation, String> {
+fn derive_eval(exp: &NamedExpr, n: &Nat) -> Result<Derivation, String> {
     match exp {
-        // Now matches on Expr variants
-        Expr::Nat(_) => Ok(Derivation {
+        // Now matches on NamedExpr variants
+        NamedExpr::Nat(_) => Ok(Derivation {
             conclusion: Judgment::Evaluation{exp: exp.clone(), n: n.clone()},
             rule: "E-Const".to_string(),
             premises: vec![],
         }),
-        Expr::Plus(e1, e2) => {
+        NamedExpr::Plus(e1, e2) => {
             let n1 = eval_expr(e1)?;
             let n2 = eval_expr(e2)?;
             let premise1 = derive_eval(e1, &n1)?;
@@ -448,7 +448,7 @@ fn derive_eval(exp: &Expr, n: &Nat) -> Result<Derivation, String> {
                 rule: "E-Plus".to_string(), 
                 premises: vec![premise1, premise2, premise3] })
         }
-        Expr::Times(e1, e2) => {
+        NamedExpr::Times(e1, e2) => {
             let n1 = eval_expr(e1)?;
             let n2 = eval_expr(e2)?;
             let premise1 = derive_eval(e1, &n1)?;

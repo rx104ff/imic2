@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
-use crate::common::ast::{Expr, Op, Type, TypeVar, TyScheme, PolyTypeEnv, Judgment};
+use crate::common::ast::{Expr, Judgment, NamedExpr, Op, PolyTypeEnv, TyScheme, Type, TypeVar};
 use crate::poly_infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
 
@@ -55,7 +55,7 @@ pub fn infer_judgment(judgment: &Judgment, used_names: HashSet<String>) -> Resul
 
 /// The recursive helper that generates and solves type constraints,
 /// while simultaneously building the derivation tree.
-fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &Expr) -> Result<Derivation, String> {
+fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Result<Derivation, String> {
     match e {
         Expr::Int(_) => Ok(Derivation {
             env: env.clone(), expr: e.clone(), ty: Type::Int,

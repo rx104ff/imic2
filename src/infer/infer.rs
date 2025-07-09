@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap};
-use crate::common::ast::{MonoTypeEnv};
+use crate::common::ast::{MonoTypeEnv, NamedExpr};
 use crate::common::ast::{Expr, Op, Type, TypeVar, Judgment};
 use crate::infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
@@ -45,7 +45,7 @@ pub fn check_judgment(judgment: &Judgment) -> Result<Derivation, String> {
 
 /// The core recursive function of the type system.
 /// It verifies that expression `e` has `expected_ty` in the current context.
-fn check_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &Expr, expected_ty: &Type) -> Result<Derivation, String> {
+fn check_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr, expected_ty: &Type) -> Result<Derivation, String> {
     if let Expr::Fun(param, body, _) = e {
         if let Type::Fun(ty1, ty2) = expected_ty {
             let mut new_env = env.clone();
@@ -100,7 +100,7 @@ fn apply_sub_to_deriv(deriv: &mut Derivation, sub: &Substitution) {
 
 /// The recursive helper that generates and solves type constraints,
 /// while simultaneously building the derivation tree.
-fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &Expr) -> Result<Derivation, String> {
+fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Result<Derivation, String> {
     match e {
         Expr::Int(_) => Ok(Derivation {
             env: env.clone(), expr: e.clone(), ty: Type::Int,

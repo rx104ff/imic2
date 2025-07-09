@@ -1,4 +1,20 @@
-use crate::common::{ast::{Env, Expr, Op, Type, Value, Var}, tokenizer::Token};
+use crate::common::{ast::{DBIndex, Expr, NamedExpr, Op, Type, Value, Var}, tokenizer::Token};
+
+pub trait Mode {
+    type Var: std::fmt::Display + Clone;
+}
+
+pub struct Named;
+pub struct Nameless;
+
+impl Mode for Named {
+    type Var = Var;
+}
+
+impl Mode for Nameless {
+    type Var = DBIndex;
+}
+
 
 pub struct ParserCore {
     tokens: Vec<Token>,
@@ -48,7 +64,7 @@ impl ParserCore {
 }
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
-fn mark_expr_paren(expr: Expr) -> Expr {
+fn mark_expr_paren<V>(expr: Expr<V>) -> Expr<V> {
     match expr {
         Expr::Let(v, e1, e2, _) => Expr::Let(v, e1, e2, true),
         Expr::LetRec(f, p, e1, e2, _) => Expr::LetRec(f, p, e1, e2, true),
@@ -61,48 +77,110 @@ fn mark_expr_paren(expr: Expr) -> Expr {
     }
 }
 
-/// A trait specific to the `eval` system for parsing runtime values,
-/// including complex closures with environments.
-pub trait ValueParser : ExpressionParser {
-    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr, String>;
+// pub trait VariableParser {
+//     type Variable: std::fmt::Display + Clone;
 
-    fn parse_value(&mut self) -> Result<Value, String> {
+//     fn parse_variable(&mut self) -> Result<Self::Variable, String>;
+// }
+
+pub trait ParseMode {
+    type Variable: std::fmt::Display + Clone;
+
+    fn parse_variable(core: &mut ParserCore) -> Result<Self::Variable, String>;
+}
+
+pub struct NamedMode;
+
+impl ParseMode for NamedMode {
+    type Variable = Var;
+
+    fn parse_variable(core: &mut ParserCore) -> Result<Var, String> {
+        println!("Default parse_variable for NAMED");
+        core.next_var()
+    }
+}
+
+pub struct NamelessMode;
+
+impl ParseMode for NamelessMode {
+    type Variable = DBIndex;
+    fn parse_variable(core: &mut ParserCore) -> Result<DBIndex, String> {
+        println!("Default parse_variable for NAMELESS");
+        match core.peek().cloned() {
+            Some(Token::Int(n)) if n >= 0 => {
+                core.advance();
+                Ok(DBIndex(n as usize))
+            }
+            _ => Err("Expected de Bruijn index.".to_string()),
+        }
+    }
+}
+
+pub trait HasParseMode {
+    type Mode: ParseMode;
+}
+
+pub trait FromExpr {
+    type ExprType;
+
+    // fn as_expr(&self) -> &Self::ExprType;
+}
+
+impl FromExpr for NamedExpr {
+    type ExprType = NamedExpr;
+}
+
+/// A trait for parsing runtime values, now generic over the expression type `E`.
+pub trait ValueParser<E, V> : ExpressionParser<E> where
+<Self as HasParseMode>::Mode: ParseMode<Variable = E>,
+E: Clone + std::fmt::Display + PartialEq,
+V: std::fmt::Display + Clone + PartialEq + FromExpr<ExprType = Expr<E>> {
+    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<V, String>;
+}
+
+pub trait ValueParserDefault<ExprCtn, V> : ValueParser<ExprCtn, V> where
+<Self as HasParseMode>::Mode: ParseMode<Variable = ExprCtn>,
+ExprCtn: Clone + std::fmt::Display + PartialEq,
+V: std::fmt::Display + Clone + PartialEq + FromExpr<ExprType = Expr<ExprCtn>>, {
+    //fn core(&mut self) -> &mut ParserCore;
+    // fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<E, String>;
+    fn parse_value(&mut self) -> Result<Value<V>, String>;
+    fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<V>)>, String>;
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value<V>, String>;
+    fn parse_list_tail(&mut self, left: Value<V>, paren: bool) -> Result<Value<V>, String>;
+    fn parse_single_value(&mut self) -> Result<Value<V>, String>;
+    fn collect_tokens_until_rbracket(&mut self) -> Vec<Token>;
+    fn parse_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String>;
+    fn parse_rec_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String>;
+}
+
+impl<P, E, V> ValueParserDefault<E, V> for P
+where
+<Self as HasParseMode>::Mode: ParseMode<Variable = E>,
+    P: ValueParser<E, V> + ?Sized,
+    E: Clone + std::fmt::Display + PartialEq,
+    V: std::fmt::Display + Clone + PartialEq + FromExpr<ExprType = Expr<E>>
+{
+    // fn core(&mut self) -> &mut ParserCore {
+    //     todo!("core() not implemented yet");
+    // }
+    fn parse_value(&mut self) -> Result<Value<V>, String> {
         self.parse_list_value(false)
     }
 
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value, String> {
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value<V>, String> {
         let left = self.parse_single_value()?;
         self.parse_list_tail(left, paren)
     }
 
-    fn parse_list_tail(&mut self, left: Value, paren: bool) -> Result<Value, String> {
-        if self.core().peek() == Some(&Token::ColonColon) {
-            self.core().advance();
-            let right = self.parse_list_value(false)?;
-            Ok(Value::Cons(Box::new(left), Box::new(right), paren))
-        } else {
-            Ok(left)
-        }
-    }
-
-    fn parse_single_value(&mut self) -> Result<Value, String> {
+    fn parse_single_value(&mut self) -> Result<Value<V>, String> {
         match self.core().peek().cloned() {
-            Some(Token::Int(n)) => {
-                self.core().advance();
-                Ok(Value::Int(n))
-            }
-            Some(Token::Bool(b)) => {
-                self.core().advance();
-                Ok(Value::Bool(b))
-            }
+            Some(Token::Int(n)) => { self.core().advance(); Ok(Value::Int(n)) }
+            Some(Token::Bool(b)) => { self.core().advance(); Ok(Value::Bool(b)) }
             Some(Token::LParen) => {
                 self.core().advance();
-                // This logic is complex because it has to look ahead to see
-                // if it's a closure `(env)[fun...]` or a parenthesized value `(1::[])`.
-                let saved_pos = self.core().pos;
-                let env_result = self.parse_env_list(); // Try to parse an env
-
-                if let Ok(env) = env_result {
+                let saved_pos = self.core().pos();
+                if let Ok(env) = self.parse_env_list() {
                     if self.core().peek() == Some(&Token::RParen) {
                         self.core().advance();
                         if self.core().peek() == Some(&Token::LBracket) {
@@ -110,14 +188,12 @@ pub trait ValueParser : ExpressionParser {
                              match self.core().peek() {
                                 Some(Token::Fun) => return self.parse_func_val(env),
                                 Some(Token::Rec) => return self.parse_rec_func_val(env),
-                                _ => {} // Fall through
+                                _ => {}
                             }
                         }
                     }
                 }
-                
-                // If it wasn't a closure, rewind and parse as a simple value.
-                self.core().pos = saved_pos;
+                self.core().initial(saved_pos);
                 let inner = self.parse_value()?;
                 self.core().expect(Token::RParen)?;
                 match inner {
@@ -125,15 +201,12 @@ pub trait ValueParser : ExpressionParser {
                     _ => Ok(inner),
                 }
             }
-            Some(Token::Nil) => {
-                self.core().advance();
-                Ok(Value::Nil)
-            }
+            Some(Token::Nil) => { self.core().advance(); Ok(Value::Nil) }
             _ => Err(format!("Invalid value syntax: {:?}", self.core().peek())),
         }
     }
-    
-    fn parse_env_list(&mut self) -> Result<Env, String> {
+
+    fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<V>)>, String> {
         let mut bindings = vec![];
         if self.core().peek() == Some(&Token::RParen) || self.core().peek() == Some(&Token::Turnstile) {
             return Ok(bindings);
@@ -151,31 +224,33 @@ pub trait ValueParser : ExpressionParser {
         }
         Ok(bindings)
     }
+
+    fn parse_list_tail(&mut self, left: Value<V>, paren: bool) -> Result<Value<V>, String> {
+        if self.core().peek() == Some(&Token::ColonColon) {
+            self.core().advance();
+            let right = self.parse_list_value(false)?;
+            Ok(Value::Cons(Box::new(left), Box::new(right), paren))
+        } else {
+            Ok(left)
+        }
+    }
     
-    // These helpers are specific to parsing closure values.
     fn collect_tokens_until_rbracket(&mut self) -> Vec<Token> {
-       let mut tokens = vec![];
+        let mut tokens = vec![];
         let mut depth = 1;
         while let Some(token) = self.core().peek().cloned() {
+            if token == Token::LBracket { depth += 1; }
             self.core().advance();
-            match token {
-                Token::LBracket => {
-                    depth += 1;
-                }
-                Token::RBracket => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-                _ => {}
+            if token == Token::RBracket {
+                depth -= 1;
+                if depth == 0 { break; }
             }
             tokens.push(token);
         }
         tokens
     }
 
-    fn parse_func_val(&mut self, env: Env) -> Result<Value, String> {
+    fn parse_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String> {
         self.core().expect(Token::Fun)?;
         let param = self.core().next_var()?;
         self.core().expect(Token::Arrow)?;
@@ -184,7 +259,7 @@ pub trait ValueParser : ExpressionParser {
         Ok(Value::FunVal(param, Box::new(body), env, false))
     }
 
-    fn parse_rec_func_val(&mut self, env: Env) -> Result<Value, String> {
+    fn parse_rec_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String> {
         self.core().expect(Token::Rec)?;
         let name = self.core().next_var()?;
         self.core().expect(Token::Equals)?;
@@ -197,13 +272,16 @@ pub trait ValueParser : ExpressionParser {
     }
 }
 
-
 /// A trait that provides default implementations for parsing all common expressions.
-pub trait ExpressionParser {
+pub trait ExpressionParser<V>: HasParseMode
+where
+    V: std::fmt::Display + Clone,
+    <Self as HasParseMode>::Mode: ParseMode<Variable = V>,
+{
     // Each implementor must provide access to its core and a way to get a variable.
     fn core(&mut self) -> &mut ParserCore;
 
-    fn parse_int(&mut self) -> Result<Expr, String> {
+    fn parse_int(&mut self) -> Result<Expr<V>, String> {
         let token = self.core().peek().cloned();
         match token {
             Some(Token::Int(n)) => {
@@ -216,7 +294,7 @@ pub trait ExpressionParser {
     
     // All expression parsing methods are now default methods on this trait.
     // They operate on the required `core` method.
-    fn parse_expr(&mut self) -> Result<Expr, String> {
+    fn parse_expr(&mut self) -> Result<Expr<V>, String> {
         match self.core().peek() {
             Some(Token::Let) => self.parse_let_expr(),
             Some(Token::If) => self.parse_if_expr(),
@@ -226,7 +304,7 @@ pub trait ExpressionParser {
         }
     }
     
-    fn parse_let_expr(&mut self) -> Result<Expr, String> {
+    fn parse_let_expr(&mut self) -> Result<Expr<V>, String> {
         self.core().advance(); // consume 'let'
         if self.core().peek() == Some(&Token::Rec) {
             self.core().advance(); // consume 'rec'
@@ -248,7 +326,7 @@ pub trait ExpressionParser {
         }
     }
 
-    fn parse_if_expr(&mut self) -> Result<Expr, String> {
+    fn parse_if_expr(&mut self) -> Result<Expr<V>, String> {
         self.core().advance(); // consume 'if'
         let cond = self.parse_expr()?;
         self.core().expect(Token::Then)?;
@@ -258,7 +336,7 @@ pub trait ExpressionParser {
         Ok(Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch), false))
     }
 
-    fn parse_fun_expr(&mut self) -> Result<Expr, String> {
+    fn parse_fun_expr(&mut self) -> Result<Expr<V>, String> {
         self.core().advance(); // consume 'fun'
         let param = self.core().next_var()?;
         self.core().expect(Token::Arrow)?;
@@ -266,7 +344,7 @@ pub trait ExpressionParser {
         Ok(Expr::Fun(param, Box::new(body), false))
     }
 
-    fn parse_match_expr(&mut self) -> Result<Expr, String> {
+    fn parse_match_expr(&mut self) -> Result<Expr<V>, String> {
         self.core().advance(); // consume 'match'
         let expr_to_match = self.parse_expr()?;
         self.core().expect(Token::With)?;
@@ -282,7 +360,7 @@ pub trait ExpressionParser {
         Ok(Expr::Match(Box::new(expr_to_match), Box::new(nil_case), head_var, tail_var, Box::new(cons_case), false))
     }
 
-    fn parse_lt(&mut self) -> Result<Expr, String> {
+    fn parse_lt(&mut self) -> Result<Expr<V>, String> {
         let mut lhs = self.parse_cons()?;
         while self.core().peek() == Some(&Token::Lt) {
             self.core().advance();
@@ -292,7 +370,7 @@ pub trait ExpressionParser {
         Ok(lhs)
     }
     
-    fn parse_cons(&mut self) -> Result<Expr, String> {
+    fn parse_cons(&mut self) -> Result<Expr<V>, String> {
         let mut lhs = self.parse_add_sub()?;
         if self.core().peek() == Some(&Token::ColonColon) {
             self.core().advance();
@@ -302,7 +380,7 @@ pub trait ExpressionParser {
         Ok(lhs)
     }
 
-    fn parse_add_sub(&mut self) -> Result<Expr, String> {
+    fn parse_add_sub(&mut self) -> Result<Expr<V>, String> {
         let mut lhs = self.parse_mul()?;
         while let Some(op_token) = self.core().peek() {
             let op = match op_token {
@@ -315,7 +393,7 @@ pub trait ExpressionParser {
         Ok(lhs)
     }
 
-    fn parse_mul(&mut self) -> Result<Expr, String> {
+    fn parse_mul(&mut self) -> Result<Expr<V>, String> {
         let mut lhs = self.parse_app()?;
         while self.core().peek() == Some(&Token::Star) {
             self.core().advance();
@@ -325,7 +403,7 @@ pub trait ExpressionParser {
         Ok(lhs)
     }
 
-    fn parse_app(&mut self) -> Result<Expr, String> {
+    fn parse_app(&mut self) -> Result<Expr<V>, String> {
         let mut lhs = self.parse_atom()?;
         while let Some(tok) = self.core().peek() {
             match tok {
@@ -339,7 +417,7 @@ pub trait ExpressionParser {
         Ok(lhs)
     }
 
-    fn parse_atom(&mut self) -> Result<Expr, String> {
+    fn parse_atom(&mut self) -> Result<Expr<V>, String> {
         match self.core().peek().cloned() {
             Some(Token::Minus) => {
                 self.core().advance();
@@ -357,7 +435,10 @@ pub trait ExpressionParser {
             }
             Some(Token::If) => self.parse_if_expr(),
             Some(Token::Let) => self.parse_let_expr(),
-            Some(Token::Ident(_)) => Ok(Expr::Var(self.core().next_var()?)),
+            Some(Token::Ident(_)) => {
+                let var = <Self::Mode as ParseMode>::parse_variable(self.core())?;
+                Ok(Expr::Var(var))
+            },
             Some(Token::Int(_)) => self.parse_int(),
             Some(Token::Bool(b)) => { 
                 self.core().advance(); Ok(Expr::Bool(b)) 

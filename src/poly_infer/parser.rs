@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::common::ast::{Type, PolyTypeEnv, TyScheme, TypeVar, Judgment};
-use crate::common::parser::{ExpressionParser, ParserCore, TypeParser};
+use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 
@@ -12,7 +12,13 @@ pub struct Parser {
     next_parser_var_id: usize,
 }
 
-impl ExpressionParser for Parser {
+impl HasParseMode for Parser {
+    type Mode = NamedMode;
+}
+
+impl ExpressionParser<
+    <<Parser as HasParseMode>::Mode as ParseMode>::Variable
+> for Parser {
     fn core(&mut self) -> &mut ParserCore {
         &mut self.core
     }
