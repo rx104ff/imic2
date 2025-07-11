@@ -76,12 +76,6 @@ fn mark_expr_paren<V>(expr: Expr<V>) -> Expr<V> {
     }
 }
 
-// pub trait VariableParser {
-//     type Variable: std::fmt::Display + Clone;
-
-//     fn parse_variable(&mut self) -> Result<Self::Variable, String>;
-// }
-
 pub trait ParseMode {
     type Variable: std::fmt::Display + Clone;
 
