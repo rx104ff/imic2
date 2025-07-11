@@ -1,7 +1,7 @@
 // src/parser.rs
 
-use crate::common::ast::{Judgment, NamedExpr, Var};
-use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, ValueParser, ValueParserDefault};
+use crate::common::ast::{Judgment, NamedExpr};
+use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, ValueParser};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {
@@ -20,7 +20,7 @@ impl ExpressionParser<
     }
 }
 
-impl ValueParser<Var, NamedExpr> for Parser {
+impl ValueParser<NamedExpr> for Parser {
     fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<NamedExpr, String>{
         let mut inner_parser = Self::new(tokens);
         inner_parser.parse_expr()
@@ -36,7 +36,7 @@ impl Parser {
     /// It parses a judgment of the form `Γ ⊢ e evalto v`.
     pub fn parse(&mut self) -> Result<Judgment, String> {
         let env = if let Some(Token::Ident(_)) = self.core().peek() {
-            self.parse_env_list()
+            <<Self as HasParseMode>::Mode as ParseMode>::parse_env_list(self)
         } else {
             Ok(vec![])
         }?;

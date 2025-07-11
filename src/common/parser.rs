@@ -15,7 +15,6 @@ impl Mode for Nameless {
     type Var = DBIndex;
 }
 
-
 pub struct ParserCore {
     tokens: Vec<Token>,
     pos: usize,
@@ -87,6 +86,13 @@ pub trait ParseMode {
     type Variable: std::fmt::Display + Clone;
 
     fn parse_variable(core: &mut ParserCore) -> Result<Self::Variable, String>;
+
+    fn parse_env_list<E, P>(value_parser: &mut P) -> Result<Vec<(Var, Value<E>)>, String>
+    where
+        E: std::fmt::Display + Clone + PartialEq + FromExpr,
+        <E as FromExpr>::ExprType: ExprExt<Var = Self::Variable>,
+        Self: Sized,
+        P: ValueParserDefault<E> + HasParseMode<Mode = Self> + ?Sized;
 }
 
 pub struct NamedMode;
@@ -97,6 +103,31 @@ impl ParseMode for NamedMode {
     fn parse_variable(core: &mut ParserCore) -> Result<Var, String> {
         println!("Default parse_variable for NAMED");
         core.next_var()
+    }
+
+    fn parse_env_list<E, P>(value_parser: &mut P) -> Result<Vec<(Var, Value<E>)>, String>
+    where
+        E: std::fmt::Display + Clone + PartialEq + FromExpr,
+        <E as FromExpr>::ExprType: ExprExt<Var = Self::Variable>,
+        Self: Sized,
+        P: ValueParserDefault<E> + HasParseMode<Mode = Self> + ?Sized
+    {
+        let mut bindings = vec![];
+        if value_parser.core().peek() == Some(&Token::RParen) || value_parser.core().peek() == Some(&Token::Turnstile) {
+            return Ok(bindings);
+        }
+        loop {
+            let var = value_parser.core().next_var()?;
+            value_parser.core().expect(Token::Equals)?;
+            let val = value_parser.parse_value()?;
+            bindings.push((var, val));
+            if value_parser.core().peek() == Some(&Token::Comma) {
+                value_parser.core().advance();
+            } else {
+                break;
+            }
+        }
+        Ok(bindings)
     }
 }
 
@@ -114,6 +145,16 @@ impl ParseMode for NamelessMode {
             _ => Err("Expected de Bruijn index.".to_string()),
         }
     }
+
+    fn parse_env_list<E, P>(_value_parser: &mut P) -> Result<Vec<(Var, Value<E>)>, String>
+    where
+        E: std::fmt::Display + Clone + PartialEq + FromExpr,
+        <E as FromExpr>::ExprType: ExprExt<Var = Self::Variable>,
+        Self: Sized,
+        P: ValueParserDefault<E> + HasParseMode<Mode = Self> + ?Sized
+    {
+        Ok(vec![])
+    }
 }
 
 pub trait HasParseMode {
@@ -122,65 +163,73 @@ pub trait HasParseMode {
 
 pub trait FromExpr {
     type ExprType;
-
-    // fn as_expr(&self) -> &Self::ExprType;
 }
+
+pub trait ExprExt {
+    type Var;
+}
+
+impl<V: std::fmt::Display + Clone> ExprExt for Expr<V> {
+    type Var = V;
+}
+
 
 impl FromExpr for NamedExpr {
     type ExprType = NamedExpr;
 }
 
 /// A trait for parsing runtime values, now generic over the expression type `E`.
-pub trait ValueParser<E, V> : ExpressionParser<E> where
-<Self as HasParseMode>::Mode: ParseMode<Variable = E>,
-E: Clone + std::fmt::Display + PartialEq,
-V: std::fmt::Display + Clone + PartialEq + FromExpr<ExprType = Expr<E>> {
-    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<V, String>;
-}
-
-pub trait ValueParserDefault<ExprCtn, V> : ValueParser<ExprCtn, V> where
-<Self as HasParseMode>::Mode: ParseMode<Variable = ExprCtn>,
-ExprCtn: Clone + std::fmt::Display + PartialEq,
-V: std::fmt::Display + Clone + PartialEq + FromExpr<ExprType = Expr<ExprCtn>>, {
-    //fn core(&mut self) -> &mut ParserCore;
-    // fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<E, String>;
-    fn parse_value(&mut self) -> Result<Value<V>, String>;
-    fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<V>)>, String>;
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value<V>, String>;
-    fn parse_list_tail(&mut self, left: Value<V>, paren: bool) -> Result<Value<V>, String>;
-    fn parse_single_value(&mut self) -> Result<Value<V>, String>;
-    fn collect_tokens_until_rbracket(&mut self) -> Vec<Token>;
-    fn parse_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String>;
-    fn parse_rec_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String>;
-}
-
-impl<P, E, V> ValueParserDefault<E, V> for P
+pub trait ValueParser<E>: ExpressionParser<<<E as FromExpr>::ExprType as ExprExt>::Var> 
 where
-<Self as HasParseMode>::Mode: ParseMode<Variable = E>,
-    P: ValueParser<E, V> + ?Sized,
-    E: Clone + std::fmt::Display + PartialEq,
-    V: std::fmt::Display + Clone + PartialEq + FromExpr<ExprType = Expr<E>>
+    E: std::fmt::Display + Clone + FromExpr,
+    <E as FromExpr>::ExprType: ExprExt,
+    <<E as FromExpr>::ExprType as ExprExt>::Var: std::fmt::Display + Clone,
+    <Self as HasParseMode>::Mode: ParseMode<Variable = <<E as FromExpr>::ExprType as ExprExt>::Var>,
 {
-    // fn core(&mut self) -> &mut ParserCore {
-    //     todo!("core() not implemented yet");
-    // }
-    fn parse_value(&mut self) -> Result<Value<V>, String> {
+    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<E, String>;
+}
+
+pub trait ValueParserDefault<E> : ValueParser<E> where
+E: std::fmt::Display + Clone + PartialEq + FromExpr,
+<E as FromExpr>::ExprType: ExprExt,
+<<E as FromExpr>::ExprType as ExprExt>::Var: std::fmt::Display + Clone,
+<Self as HasParseMode>::Mode: ParseMode<Variable = <<E as FromExpr>::ExprType as ExprExt>::Var> {
+    // fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<E>)>, String>;
+    fn parse_value(&mut self) -> Result<Value<E>, String>;
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value<E>, String>;
+    fn parse_list_tail(&mut self, left: Value<E>, paren: bool) -> Result<Value<E>, String>;
+    fn parse_single_value(&mut self) -> Result<Value<E>, String>;
+    fn collect_tokens_until_rbracket(&mut self) -> Vec<Token>;
+    fn parse_func_val(&mut self, env: Vec<(Var, Value<E>)>) -> Result<Value<E>, String>;
+    fn parse_rec_func_val(&mut self, env: Vec<(Var, Value<E>)>) -> Result<Value<E>, String>;
+}
+
+impl<P, E> ValueParserDefault<E> for P
+where
+    P: ValueParser<E> + ?Sized,
+    E: std::fmt::Display + Clone + PartialEq + FromExpr,
+    <<E as FromExpr>::ExprType as ExprExt>::Var: std::fmt::Display + Clone,
+    <E as FromExpr>::ExprType: ExprExt,
+    <P as HasParseMode>::Mode: ParseMode<Variable = <<E as FromExpr>::ExprType as ExprExt>::Var>
+{
+    fn parse_value(&mut self) -> Result<Value<E>, String> {
         self.parse_list_value(false)
     }
 
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value<V>, String> {
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value<E>, String> {
         let left = self.parse_single_value()?;
         self.parse_list_tail(left, paren)
     }
 
-    fn parse_single_value(&mut self) -> Result<Value<V>, String> {
+    fn parse_single_value(&mut self) -> Result<Value<E>, String> {
         match self.core().peek().cloned() {
             Some(Token::Int(n)) => { self.core().advance(); Ok(Value::Int(n)) }
             Some(Token::Bool(b)) => { self.core().advance(); Ok(Value::Bool(b)) }
             Some(Token::LParen) => {
                 self.core().advance();
                 let saved_pos = self.core().pos();
-                if let Ok(env) = self.parse_env_list() {
+                
+                if let Ok(env) = <<Self as HasParseMode>::Mode as ParseMode>::parse_env_list(self) {
                     if self.core().peek() == Some(&Token::RParen) {
                         self.core().advance();
                         if self.core().peek() == Some(&Token::LBracket) {
@@ -193,6 +242,7 @@ where
                         }
                     }
                 }
+
                 self.core().initial(saved_pos);
                 let inner = self.parse_value()?;
                 self.core().expect(Token::RParen)?;
@@ -206,26 +256,7 @@ where
         }
     }
 
-    fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<V>)>, String> {
-        let mut bindings = vec![];
-        if self.core().peek() == Some(&Token::RParen) || self.core().peek() == Some(&Token::Turnstile) {
-            return Ok(bindings);
-        }
-        loop {
-            let var = self.core().next_var()?;
-            self.core().expect(Token::Equals)?;
-            let val = self.parse_value()?;
-            bindings.push((var, val));
-            if self.core().peek() == Some(&Token::Comma) {
-                self.core().advance();
-            } else {
-                break;
-            }
-        }
-        Ok(bindings)
-    }
-
-    fn parse_list_tail(&mut self, left: Value<V>, paren: bool) -> Result<Value<V>, String> {
+    fn parse_list_tail(&mut self, left: Value<E>, paren: bool) -> Result<Value<E>, String> {
         if self.core().peek() == Some(&Token::ColonColon) {
             self.core().advance();
             let right = self.parse_list_value(false)?;
@@ -234,7 +265,7 @@ where
             Ok(left)
         }
     }
-    
+
     fn collect_tokens_until_rbracket(&mut self) -> Vec<Token> {
         let mut tokens = vec![];
         let mut depth = 1;
@@ -250,7 +281,7 @@ where
         tokens
     }
 
-    fn parse_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String> {
+    fn parse_func_val(&mut self, env: Vec<(Var, Value<E>)>) -> Result<Value<E>, String> {
         self.core().expect(Token::Fun)?;
         let param = self.core().next_var()?;
         self.core().expect(Token::Arrow)?;
@@ -259,7 +290,7 @@ where
         Ok(Value::FunVal(param, Box::new(body), env, false))
     }
 
-    fn parse_rec_func_val(&mut self, env: Vec<(Var, Value<V>)>) -> Result<Value<V>, String> {
+    fn parse_rec_func_val(&mut self, env: Vec<(Var, Value<E>)>) -> Result<Value<E>, String> {
         self.core().expect(Token::Rec)?;
         let name = self.core().next_var()?;
         self.core().expect(Token::Equals)?;
