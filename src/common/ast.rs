@@ -78,7 +78,7 @@ pub enum Value<E> {
 pub struct DBIndex(pub usize);
 
 // The environment for translation is a list of variable names in scope.
-pub type NamelessEnv = Vec<NamelessValue>;
+pub type NamelessEnv = Vec<(Var, NamelessValue)>;
 
 pub type NamedExpr = Expr<Var>;
 pub type NamelessExpr = Expr<DBIndex>;
@@ -183,6 +183,8 @@ pub enum Judgment {
 
     // For Nat reduction
     Reduction { r_type: ReductionType, e1: NamedExpr, e2: NamedExpr },
+
+    NamelessEvaluation (NamelessEnv, NamelessExpr),
     
     // For ML evaluation
     EvaluatesTo(NamedEnv, NamedExpr), // Assuming Type can also represent ML values

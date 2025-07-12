@@ -11,6 +11,10 @@ name = "ml"
 path = "src/bin/eval.rs"
 
 [[bin]]
+name = "nameless"
+path = "src/bin/nameless.rs"
+
+[[bin]]
 name = "nat"
 path = "src/bin/nat.rs"
 

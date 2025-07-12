@@ -1,4 +1,4 @@
-use crate::common::{ast::{DBIndex, Expr, NamedExpr, Op, Type, Value, Var}, tokenizer::Token};
+use crate::common::{ast::{DBIndex, Expr, NamedExpr, NamelessExpr, Op, Type, Value, Var}, tokenizer::Token};
 
 pub trait Mode {
     type Var: std::fmt::Display + Clone;
@@ -95,7 +95,6 @@ impl ParseMode for NamedMode {
     type Variable = Var;
 
     fn parse_variable(core: &mut ParserCore) -> Result<Var, String> {
-        println!("Default parse_variable for NAMED");
         core.next_var()
     }
 
@@ -130,24 +129,52 @@ pub struct NamelessMode;
 impl ParseMode for NamelessMode {
     type Variable = DBIndex;
     fn parse_variable(core: &mut ParserCore) -> Result<DBIndex, String> {
-        println!("Default parse_variable for NAMELESS");
         match core.peek().cloned() {
-            Some(Token::Int(n)) if n >= 0 => {
+            Some(Token::HashVar(n)) => {
                 core.advance();
                 Ok(DBIndex(n as usize))
             }
-            _ => Err("Expected de Bruijn index.".to_string()),
+            _ => Err("Expected a de Bruijn index starting with '#', e.g., '#1'.".to_string()),
         }
     }
 
-    fn parse_env_list<E, P>(_value_parser: &mut P) -> Result<Vec<(Var, Value<E>)>, String>
+    fn parse_env_list<E, P>(value_parser: &mut P) -> Result<Vec<(Var, Value<E>)>, String>
     where
         E: std::fmt::Display + Clone + PartialEq + FromExpr,
         <E as FromExpr>::ExprType: ExprExt<Var = Self::Variable>,
         Self: Sized,
-        P: ValueParserDefault<E> + HasParseMode<Mode = Self> + ?Sized
+        P: ValueParserDefault<E> + HasParseMode<Mode = Self> + ?Sized,
     {
-        Ok(vec![])
+        if value_parser.core().peek() == Some(&Token::Turnstile) {
+            return Ok(vec![]);
+        }
+
+        // 1. Parse all values into a temporary list.
+        let mut values = vec![];
+        loop {
+            let val = value_parser.parse_value()?;
+            values.push(val);
+
+            if value_parser.core().peek() == Some(&Token::Comma) {
+                value_parser.core().advance();
+            } else {
+                break;
+            }
+        }
+
+        // 2. Create bindings with de Bruijn index-style names (#1, #2, ...).
+        // The last value parsed corresponds to index #1.
+        let total = values.len();
+        let bindings = values
+            .into_iter()
+            .enumerate()
+            .map(|(i, val)| {
+                let var_name = format!("#{}", total - i);
+                (Var(var_name), val)
+            })
+            .collect();
+
+        Ok(bindings)
     }
 }
 
@@ -170,6 +197,10 @@ impl<V: std::fmt::Display + Clone> ExprExt for Expr<V> {
 
 impl FromExpr for NamedExpr {
     type ExprType = NamedExpr;
+}
+
+impl FromExpr for NamelessExpr {
+    type ExprType = NamelessExpr;
 }
 
 /// A trait for parsing runtime values, now generic over the expression type `E`.
@@ -460,7 +491,7 @@ where
             }
             Some(Token::If) => self.parse_if_expr(),
             Some(Token::Let) => self.parse_let_expr(),
-            Some(Token::Ident(_)) => {
+            Some(Token::Ident(_)) | Some(Token::HashVar(_)) => {
                 let var = <Self::Mode as ParseMode>::parse_variable(self.core())?;
                 Ok(Expr::Var(var))
             },

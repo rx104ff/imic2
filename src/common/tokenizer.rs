@@ -13,6 +13,7 @@ pub enum Token {
     Int(i64),
     Bool(bool),
     Ident(String),
+    HashVar(u64),
     TypeVar(String), // 'a, 'b, etc.
 
     // Grouping and Lists
@@ -98,6 +99,17 @@ pub fn tokenize(input: &str) -> Vec<Token> {
         } else {
             let c = s.chars().next().unwrap();
             match c {
+                '#' => {
+                    s = &s[1..];
+                    let end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+                    let num_str = &s[..end];
+                    s = &s[end..];
+                    if let Ok(num) = num_str.parse() {
+                        tokens.push(Token::HashVar(num));
+                    } else {
+                        panic!("Expect a number")
+                    }
+                }
                 '\'' => {
                     s = &s[1..];
                     let end = s.find(|c: char| !c.is_alphanumeric()).unwrap_or(s.len());
