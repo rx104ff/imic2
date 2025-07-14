@@ -1,4 +1,4 @@
-use crate::common::{ast::{DBIndex, Env, Expr, NamedExpr, NamedVar, NamelessExpr, NamelessVar, Op, Type, Value, Variable}, tokenizer::Token};
+use crate::common::{ast::{DBIndex, Env, Expr, NamedEnv, NamedVar, NamelessEnv, NamelessVar, Op, Type, Value, Variable}, tokenizer::Token};
 
 pub trait Mode {
     type Var: std::fmt::Display + Clone;
@@ -13,6 +13,21 @@ impl Mode for Named {
 
 impl Mode for Nameless {
     type Var = NamelessVar;
+}
+
+// The new FromExpr trait, which acts as the "caster".
+pub trait FromVar: Variable {
+    type Env;
+}
+
+// Implement the trait for NamedVar
+impl FromVar for NamedVar {
+    type Env = NamedEnv;
+}
+
+// Implement the trait for NamelessVar
+impl FromVar for NamelessVar {
+    type Env = NamelessEnv;
 }
 
 pub struct ParserCore {
@@ -182,28 +197,6 @@ pub trait HasParseMode {
     type Mode: ParseMode;
 }
 
-// pub trait FromExpr {
-//     type ExprType;
-// }
-
-// pub trait ExprExt {
-//     type Var;
-// }
-
-// impl<V: std::fmt::Display + Clone> ExprExt for Expr<V> {
-//     type Var = V;
-// }
-
-
-// impl FromExpr for NamedExpr {
-//     type ExprType = NamedExpr;
-// }
-
-// impl FromExpr for NamelessExpr {
-//     type ExprType = NamelessExpr;
-// }
-
-/// A trait for parsing runtime values, now generic over the expression type `E`.
 pub trait ValueParser<E: Variable>: ExpressionParser<E> {
     fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr<E>, String>;
 }

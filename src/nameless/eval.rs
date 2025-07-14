@@ -1,5 +1,5 @@
 // src/nameless_eval/eval.rs
-use crate::common::ast::{DBIndex, Expr, Judgment, NamelessEnv, NamelessExpr, NamelessValue, NamelessVar, Op, Var};
+use crate::common::ast::{DBIndex, Expr, Judgment, NamelessEnv, NamelessExpr, NamelessValue, NamelessVar, Op};
 use crate::nameless::proof::Derivation;
 
 
@@ -159,25 +159,65 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                 _ => Err("Condition for an 'if' expression must evaluate to a boolean.".to_string()),
             }
         }
-        Expr::App(f, arg, is_paren) => {
-            let df = derive(env, f)?;
-            let darg = derive(env, arg)?;
-            match &df.result {
-                NamelessValue::FunVal(param, body, closure_env, _) => {
+        Expr::LetRec(f, x, body, e2, is_paren) => {
+            let mut new_env = env.clone();
+            let rec_val = NamelessValue::RecFunVal(f.clone(), x.clone(), body.clone(), env.clone(), *is_paren);
+            // Push the recursive value onto the stack for the `in` part.
+            new_env.push((f.clone(), rec_val.clone()));
+
+            let d2 = derive(&new_env, e2)?;
+            Ok(Derivation {
+                env: env.clone(),
+                expr: expr.clone(),
+                result: d2.result.clone(),
+                rule: "E-LetRec".to_string(),
+                sub_derivations: vec![d2],
+            })
+        }
+        Expr::App(f_expr, arg_expr, _) => {
+            let d_f = derive(env, f_expr)?;
+            let d_arg = derive(env, arg_expr)?;
+            let result;
+            let rule;
+            let sub_derivations;
+
+            match &d_f.result {
+                NamelessValue::FunVal(binder, body, closure_env, _) => {
+                    rule = "E-App".to_string();
                     let mut new_env = closure_env.clone();
-                    new_env.push((param.clone(), darg.result.clone())); // Push the argument value
+                    // Push argument for the body.
+                    new_env.push((binder.clone(), d_arg.result.clone()));
+
                     let d_body = derive(&new_env, body)?;
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: Expr::App(f.clone(), arg.clone(), *is_paren),
-                        result: d_body.result.clone(),
-                        rule: "E-App".to_string(),
-                        sub_derivations: vec![df, darg, d_body],
-                    })
+                    result = d_body.result.clone();
+                    sub_derivations = vec![d_f, d_arg, d_body];
                 }
-                // ... handle RecFunVal if needed ...
-                _ => Err("Attempted to apply a non-function value".to_string()),
+                NamelessValue::RecFunVal(f, x, body, closure_env, is_paren_rec) => {
+                    // Use the distinct E-AppRec rule.
+                    rule = "E-AppRec".to_string();
+                    let mut new_env = closure_env.clone();
+
+                    // Create the recursive value to push into the environment.
+                    let rec_val = NamelessValue::RecFunVal(f.clone(), x.clone(), body.clone(), closure_env.clone(), *is_paren_rec);
+
+                    // Push the function itself first for recursion, then the argument.
+                    // In the body: #1 will be the argument, #2 will be the recursive function.
+                    new_env.push((f.clone(), rec_val));
+                    new_env.push((x.clone(), d_arg.result.clone()));
+
+                    let d_body = derive(&new_env, body)?;
+                    result = d_body.result.clone();
+                    sub_derivations = vec![d_f, d_arg, d_body];
+                }
+                _ => return Err("Attempted to apply a non-function value".to_string()),
             }
+            Ok(Derivation {
+                env: env.clone(),
+                expr: expr.clone(),
+                result,
+                rule, // The rule is now correctly set to E-App or E-AppRec.
+                sub_derivations,
+            })
         }
         // ... Implement other expression types like BinOp, If, etc.
         _ => Err(format!("Nameless evaluation not implemented for: {}", expr)),

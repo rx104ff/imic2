@@ -47,3 +47,34 @@ fn test_nameless_59() {
     assert_snapshot!(&result);
 }
 
+#[test]
+fn test_nameless_61() {
+    let result = run_nameless_eval_test("|- let . = let . = 3 - 2 in #1 * #1 in let . = 4 in #2 + #1 evalto 5");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_nameless_63() {
+    let result = run_nameless_eval_test("|- let . = 2 in fun . -> #1 + #2 evalto (2)[fun . -> #1 + #2]");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_nameless_65() {
+    let result = run_nameless_eval_test("|- let . = fun . -> #1 3 + #1 4 in #1 (fun . -> #1 * #1) evalto 25");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_nameless_67() {
+    let result = run_nameless_eval_test("|- let . = 3 in let . = fun . -> #1 * #2 in let . = 5 in #2 4 evalto 12");
+    assert_snapshot!(&result);
+}
+
+#[test]
+fn test_nameless_69() {
+    let result = run_nameless_eval_test("|- let rec . = fun . -> 
+     if #1 < 2 then 1 else #1 * #2 (#1 - 1) in #1 3
+   evalto 6");
+    assert_snapshot!(&result);
+}

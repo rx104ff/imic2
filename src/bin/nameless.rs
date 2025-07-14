@@ -1,5 +1,5 @@
 use std::env;
-use imic2::{common::{self}, nameless}; 
+use imic2::{common::{self}}; 
 
 fn main() {
     let args: Vec<String> = env::args().collect();

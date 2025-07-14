@@ -48,9 +48,6 @@ impl fmt::Display for DBIndex {
 
 // --- Universal Primitives ---
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Var(pub String);
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op { Add, Sub, Mul, Lt, Cons }
 
@@ -108,17 +105,41 @@ impl Nat {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DBIndex(pub usize);
 
-// The environment for translation is a list of variable names in scope.
-pub type NamelessEnv = Vec<(NamelessVar, NamelessValue)>;
-
 pub type NamedExpr = Expr<NamedVar>;
 pub type NamelessExpr = Expr<NamelessVar>;
 
-// We can now create convenient type aliases for our specific value types.
 pub type NamedValue = Value<NamedVar>;
 pub type NamelessValue = Value<NamelessVar>;
 
-pub type NamedEnv = Vec<(NamedVar, NamedValue)>;
+pub type NamedEnv = Env<NamedVar>;
+pub type NamelessEnv = Env<NamelessVar>;
+
+// --- Define a new, local trait for displaying environments ---
+pub trait DisplayEnv {
+    fn display_env(&self) -> String;
+}
+
+impl DisplayEnv for NamedEnv {
+    fn display_env(&self) -> String {
+        if self.is_empty() {
+            format!("()")
+        } else {
+            let parts: Vec<String> = self.iter().map(|(v, val)| format!("{} = {}", v, val)).collect();
+            format!("({})", parts.join(", "))
+        }
+    }
+}
+
+impl DisplayEnv for NamelessEnv {
+    fn display_env(&self) -> String {
+        if self.is_empty() {
+            format!("()")
+        } else {
+            let parts: Vec<String> = self.iter().map(|(_, val)| format!("{}", val)).collect();
+            format!("({})", parts.join(", "))
+        }
+    }
+}
 
 // --- Types for Type Systems (TypingML4 & PolyTypingML4) ---
 
@@ -244,7 +265,9 @@ impl fmt::Display for Nat {
     }
 }
 
-impl<E> fmt::Display for Value<E> where E: std::fmt::Display + Variable{
+impl<E: Variable  + 'static> fmt::Display for Value<E> where E: std::fmt::Display,
+Env<E>: DisplayEnv, // Add this trait bound
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{}", i),
@@ -255,32 +278,12 @@ impl<E> fmt::Display for Value<E> where E: std::fmt::Display + Variable{
                 if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
             }
             Value::FunVal(param, body, env, _) => {
-                let env_str = if env.is_empty() {
-                    "()".to_string()
-                } else {
-                    format!("({})", env.iter()
-                        .map(|(v, val)| format!("{} = {}", v, val))
-                        .collect::<Vec<_>>().join(", "))
-                };
-                write!(f, "{}[fun {} -> {}]", env_str, param, body)
+                write!(f, "{}[fun {} -> {}]", env.display_env(), param, body)
             }
             Value::RecFunVal(func, param, body, env, _) => {
-                let env_str = if env.is_empty() {
-                    "()".to_string()
-                } else {
-                    format!("({})", env.iter()
-                        .map(|(v, val)| format!("{} = {}", v, val))
-                        .collect::<Vec<_>>().join(", "))
-                };
-                write!(f, "{}[rec {} = fun {} -> {}]", env_str, func, param, body)
+                write!(f, "{}[rec {} = fun {} -> {}]", env.display_env(), func, param, body)
             }
         }
-    }
-}
-
-impl fmt::Display for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 
