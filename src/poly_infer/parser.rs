@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::common::ast::{Type, PolyTypeEnv, TyScheme, TypeVar, Judgment};
-use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, TypeParser};
+use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, TypeParser, ExpressionParserDefault};
 use crate::common::tokenizer::Token;
 
 
@@ -17,7 +17,7 @@ impl HasParseMode for Parser {
 }
 
 impl ExpressionParser<
-    <<Parser as HasParseMode>::Mode as ParseMode>::Variable
+    <<Parser as HasParseMode>::Mode as ParseMode>::Var
 > for Parser {
     fn core(&mut self) -> &mut ParserCore {
         &mut self.core
@@ -97,10 +97,11 @@ impl Parser {
 
     // --- Type Environment and Type Parsing ---
     fn parse_type_env(&mut self) -> Result<PolyTypeEnv, String> {
+        type M = NamedMode;
         let mut env = PolyTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
-            let var = self.core.next_var()?;
+            let var = M::parse_variable(&mut self.core)?;
             self.core.expect(Token::Colon)?;
             let scheme = self.parse_type_scheme()?;
             env.push((var, scheme));

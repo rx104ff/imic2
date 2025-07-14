@@ -1,7 +1,50 @@
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::collections::{HashSet};
 use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
+
+/// A trait representing the concept of a variable, either named or nameless.
+pub trait Variable: std::fmt::Display + Clone + PartialEq + Sized {
+    /// The type used for binding occurrences (e.g., `x` in `let x = ...`).
+    type Binder: std::fmt::Display + Clone + PartialEq + Debug;
+}
+
+/// A named variable, represented as a string.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NamedVar(pub String);
+impl Variable for NamedVar {
+    type Binder = NamedVar;
+}
+
+/// A nameless variable, represented by a de Bruijn index.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NamelessVar(pub DBIndex);
+impl Variable for NamelessVar {
+    // Binders in nameless expressions can be a named variable (for let-rec) or a dot.
+    type Binder = NamelessVar;
+}
+
+impl fmt::Display for NamedVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl fmt::Display for NamelessVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl fmt::Display for DBIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 == 0 {
+            write!(f, ".")
+        } else {
+            write!(f, "#{}", self.0)
+        }
+    }
+}
 
 // --- Universal Primitives ---
 
@@ -61,33 +104,21 @@ impl Nat {
     }
 }
 
-// --- Value AST for the `eval` system ---
-// These are the runtime values produced by the evaluator.
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value<E> {
-    Int(i64),
-    Bool(bool),
-    Nil,
-    Cons(Box<Value<E>>, Box<Value<E>>, bool),
-    FunVal(Var, Box<E>, Vec<(Var, Value<E>)>, bool),
-    RecFunVal(Var, Var, Box<E>, Vec<(Var, Value<E>)>, bool),
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DBIndex(pub usize);
 
 // The environment for translation is a list of variable names in scope.
-pub type NamelessEnv = Vec<(Var, NamelessValue)>;
+pub type NamelessEnv = Vec<(NamelessVar, NamelessValue)>;
 
-pub type NamedExpr = Expr<Var>;
-pub type NamelessExpr = Expr<DBIndex>;
+pub type NamedExpr = Expr<NamedVar>;
+pub type NamelessExpr = Expr<NamelessVar>;
 
 // We can now create convenient type aliases for our specific value types.
-pub type NamedValue = Value<NamedExpr>;
-pub type NamelessValue = Value<NamelessExpr>;
+pub type NamedValue = Value<NamedVar>;
+pub type NamelessValue = Value<NamelessVar>;
 
-pub type NamedEnv = Vec<(Var, NamedValue)>;
+pub type NamedEnv = Vec<(NamedVar, NamedValue)>;
 
 // --- Types for Type Systems (TypingML4 & PolyTypingML4) ---
 
@@ -138,32 +169,39 @@ impl Hash for TypeVar {
     } 
 }
 
-pub type MonoTypeEnv = Vec<(Var, Type)>;
-pub type PolyTypeEnv = Vec<(Var, TyScheme)>;
+pub type MonoTypeEnv = Vec<(NamedVar, Type)>;
+pub type PolyTypeEnv = Vec<(NamedVar, TyScheme)>;
 
 // --- Universal Expression AST ---
 
+pub type Env<V> = Vec<(V, Value<V>)>;
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<V> {
-    // Literals for ML, Nat, and Type systems
+pub enum Expr<V: Variable> {
     Int(i64),
     Bool(bool),
     Nat(Nat),
     Var(V),
     Nil,
-    
-    // ML & Type System Expressions
-    Let(Var, Box<Expr<V>>, Box<Expr<V>>, bool),
-    LetRec(Var, Var, Box<Expr<V>>, Box<Expr<V>>, bool),
-    Fun(Var, Box<Expr<V>>, bool),
+    Let(V, Box<Expr<V>>, Box<Expr<V>>, bool),
+    LetRec(V, V, Box<Expr<V>>, Box<Expr<V>>, bool),
+    Fun(V, Box<Expr<V>>, bool),
     App(Box<Expr<V>>, Box<Expr<V>>, bool),
     If(Box<Expr<V>>, Box<Expr<V>>, Box<Expr<V>>, bool),
     BinOp(Box<Expr<V>>, Op, Box<Expr<V>>, bool),
-    Match(Box<Expr<V>>, Box<Expr<V>>, Var, Var, Box<Expr<V>>, bool),
-    
-    // Nat Expression extensions
+    Match(Box<Expr<V>>, Box<Expr<V>>, V, V, Box<Expr<V>>, bool),
     Plus(Box<Expr<V>>, Box<Expr<V>>),
     Times(Box<Expr<V>>, Box<Expr<V>>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value<V: Variable> {
+    Int(i64),
+    Bool(bool),
+    Nil,
+    Cons(Box<Value<V>>, Box<Value<V>>, bool),
+    FunVal(V, Box<Expr<V>>, Env<V>, bool),
+    RecFunVal(V, V, Box<Expr<V>>, Env<V>, bool),
 }
 
 // --- Universal Judgment AST ---
@@ -179,7 +217,7 @@ pub enum Judgment {
     Comparison { n1: Nat, n2: Nat },
 
     // For Nat evaluation
-    Evaluation { exp: Expr<Var>, n: Nat },
+    Evaluation { exp: Expr<NamedVar>, n: Nat },
 
     // For Nat reduction
     Reduction { r_type: ReductionType, e1: NamedExpr, e2: NamedExpr },
@@ -206,7 +244,7 @@ impl fmt::Display for Nat {
     }
 }
 
-impl<E> fmt::Display for Value<E> where E: std::fmt::Display {
+impl<E> fmt::Display for Value<E> where E: std::fmt::Display + Variable{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{}", i),
@@ -255,13 +293,7 @@ impl fmt::Display for Op {
     }
 }
 
-impl fmt::Display for DBIndex {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
-    }
-}
-
-impl<E> fmt::Display for Expr<E> where E: std::fmt::Display {
+impl<E> fmt::Display for Expr<E> where E: std::fmt::Display + Variable{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Nat(n) => write!(f, "{}", n),

@@ -1,7 +1,7 @@
 // src/parser.rs
 
-use crate::common::ast::{Judgment, NamedExpr};
-use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, ValueParser};
+use crate::common::ast::{Judgment, NamedExpr, NamedVar};
+use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, ValueParser, ExpressionParserDefault};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {
@@ -12,15 +12,13 @@ impl HasParseMode for Parser {
     type Mode = NamedMode;
 }
 
-impl ExpressionParser<
-    <<Parser as HasParseMode>::Mode as ParseMode>::Variable
-> for Parser {
+impl ExpressionParser<NamedVar> for Parser {
     fn core(&mut self) -> &mut ParserCore {
         &mut self.core
     }
 }
 
-impl ValueParser<NamedExpr> for Parser {
+impl ValueParser<NamedVar> for Parser {
     fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<NamedExpr, String>{
         let mut inner_parser = Self::new(tokens);
         inner_parser.parse_expr()

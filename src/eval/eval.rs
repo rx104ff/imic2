@@ -1,7 +1,7 @@
 // src/ml4.rs
 
 use crate::eval::version::{LanguageVersion};
-use crate::common::ast::{Expr, Judgment, NamedEnv, NamedExpr, Op, Value, Var};
+use crate::common::ast::{Expr, Judgment, NamedEnv, NamedExpr, NamedVar, Op, Value};
 use crate::eval::proof::{Derivation, Axiom};
 
 use std::fmt;
@@ -47,11 +47,11 @@ impl Axiom for Derivation {
         }
 
         if let Expr::BinOp(lhs_expr, op, rhs_expr, _) = &self.expr {
-            let lhs_val:Value<Var> = match &**lhs_expr {
+            let lhs_val:Value<NamedVar> = match &**lhs_expr {
                 Expr::Int(n) => Value::Int(*n),
                 _ => return None,
             };
-            let rhs_val:Value<Var> = match &**rhs_expr {
+            let rhs_val:Value<NamedVar> = match &**rhs_expr {
                 Expr::Int(n) => Value::Int(*n),
                 _ => return None,
             };
@@ -127,7 +127,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 panic!("Error: Variables are not supported in ML1 (found: {})", x.0);
             }
             LanguageVersion::ML2 | LanguageVersion::ML3 => {
-                fn derive_var_recursive(env: &NamedEnv, current_expr: &NamedExpr, x: &Var, version: LanguageVersion) -> Derivation {
+                fn derive_var_recursive(env: &NamedEnv, current_expr: &NamedExpr, x: &NamedVar, version: LanguageVersion) -> Derivation {
                     if env.is_empty() {
                         panic!("Unbound variable: {}", x.0);
                     }
