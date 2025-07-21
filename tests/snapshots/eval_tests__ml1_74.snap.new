@@ -1,0 +1,6 @@
+---
+source: tests/eval_tests.rs
+assertion_line: 233
+expression: "&result"
+---
+Parsing Error: Expected token Equals, found Ident("length")

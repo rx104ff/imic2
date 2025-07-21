@@ -1,0 +1,6 @@
+---
+source: tests/eval_tests.rs
+assertion_line: 30
+expression: "&result"
+---
+Parsing Error: Token Plus cannot be parsed as a variable.

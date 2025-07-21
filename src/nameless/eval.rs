@@ -95,7 +95,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
             })
         }
         Expr::Var(NamelessVar(nameless_var)) => {
-            let i = (nameless_var.0);
+            let i = nameless_var.0;
             // de Bruijn indices are 1-based from the user's perspective.
             if i > 0 && i <= env.len() {
                 // #1 refers to the last item in the env, so we access `env[len - i]`.

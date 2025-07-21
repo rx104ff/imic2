@@ -184,6 +184,23 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             let d2 = infer_expr(ctx, env, e2)?;
             let t2 = apply_sub(&d2.ty, &ctx.sub);
             
+            if let Op::App = op {
+                let return_ty = ctx.new_type_var();
+                let fun_ty = Type::Fun(Box::new(t2), Box::new(return_ty.clone()));
+                
+                ctx.sub = unify(&t1, &fun_ty, &ctx.sub)?;
+                
+                let final_type = apply_sub(&return_ty, &ctx.sub);
+                
+                return Ok(Derivation {
+                    env: env.clone(),
+                    expr: e.clone(),
+                    ty: final_type,
+                    rule: "T-App".to_string(),
+                    premises: vec![d1, d2],
+                });
+            }
+
             let (expected_t1, expected_t2, result_ty, rule_name) = match op {
                 Op::Add => (Type::Int, Type::Int, Type::Int, "T-Plus"),
                 Op::Sub => (Type::Int, Type::Int, Type::Int, "T-Minus"),
@@ -192,7 +209,8 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 Op::Cons => {
                     let elem_type = ctx.new_type_var();
                     (elem_type.clone(), Type::List(Box::new(elem_type)), t2.clone(), "T-Cons")
-                }
+                },
+                _ => return Err(format!("Unhandled operator: {:?}", op)),
             };
             
             let sub1 = unify(&t1, &expected_t1, &ctx.sub)?;

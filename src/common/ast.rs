@@ -49,7 +49,7 @@ impl fmt::Display for DBIndex {
 // --- Universal Primitives ---
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Op { Add, Sub, Mul, Lt, Cons }
+pub enum Op { Add, Sub, Mul, Lt, Cons, App }
 
 // --- Types for Nat Language ---
 
@@ -215,6 +215,28 @@ pub enum Expr<V: Variable> {
     Times(Box<Expr<V>>, Box<Expr<V>>),
 }
 
+impl<V: Variable> Expr<V> {
+    /// Consumes the expression and returns the inner variable `V` if it's an `Expr::Var`,
+    /// otherwise returns `None`.
+    pub fn into_variable(self) -> Option<V> {
+        if let Expr::Var(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns a reference to the inner variable `V` if it's an `Expr::Var`,
+    /// otherwise returns `None`.
+    pub fn as_variable(&self) -> Option<&V> {
+        if let Expr::Var(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<V: Variable> {
     Int(i64),
@@ -291,7 +313,7 @@ impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Op::Add => write!(f, "+"), Op::Sub => write!(f, "-"), Op::Mul => write!(f, "*"),
-            Op::Lt => write!(f, "<"), Op::Cons => write!(f, "::"),
+            Op::Lt => write!(f, "<"), Op::Cons => write!(f, "::"), Op::App => write!(f, ""),
         }
     }
 }

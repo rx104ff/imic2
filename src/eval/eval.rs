@@ -62,6 +62,7 @@ impl Axiom for Derivation {
                 Op::Mul => "times",
                 Op::Lt => "less than",
                 Op::Cons => "cons",
+                Op::App => "",
             };
 
             return Some(format!(
@@ -129,7 +130,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
             LanguageVersion::ML2 | LanguageVersion::ML3 => {
                 fn derive_var_recursive(env: &NamedEnv, current_expr: &NamedExpr, x: &NamedVar, version: LanguageVersion) -> Derivation {
                     if env.is_empty() {
-                        panic!("Unbound variable: {}", x.0);
+                        panic!("Unbound variable: {}", x);
                     }
                     let last_index = env.len() - 1;
                     let (last_var, last_val) = &env[last_index];
@@ -176,6 +177,40 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
         Expr::BinOp(e1, op, e2, is_paren) => {
             let d1 = derive(env, e1, version)?;
             let d2 = derive(env, e2, version)?;
+
+            if *op == Op::App {
+                return match &d1.result {
+                    Value::FunVal(param, body, closure_env, _) => {
+                        let mut new_env = (**closure_env).to_vec();
+                        new_env.push((param.clone(), d2.result.clone()));
+                        let d_body = derive(&new_env, body, version)?;
+                        Ok(Derivation {
+                            env: env.clone(),
+                            expr: expr.clone(),
+                            result: d_body.result.clone(),
+                            rule: "E-App".to_string(),
+                            sub_derivations: vec![d1, d2, d_body],
+                            version,
+                        })
+                    }
+                    Value::RecFunVal(name, param, body, closure_env, _) => {
+                        let mut new_env = (**closure_env).to_vec();
+                        new_env.push((name.clone(), d1.result.clone()));
+                        new_env.push((param.clone(), d2.result.clone()));
+                        let d_body = derive(&new_env, body, version)?;
+                        Ok(Derivation {
+                            env: env.clone(),
+                            expr: expr.clone(),
+                            result: d_body.result.clone(),
+                            rule: "E-AppRec".to_string(),
+                            sub_derivations: vec![d1, d2, d_body],
+                            version,
+                        })
+                    }
+                    _ => Err(format!("Tried to apply a non-function type: {:?}", d1.result)),
+                };
+            }
+
             let (v1, v2) = (d1.result.clone(), d2.result.clone());
 
             let (result, rule, basic_rule) = match (v1.clone(), v2.clone(), op) {

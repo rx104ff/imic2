@@ -1,0 +1,6 @@
+---
+source: tests/eval_tests.rs
+assertion_line: 163
+expression: "&result"
+---
+Parsing Error: Token RParen cannot be parsed as a variable.

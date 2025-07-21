@@ -1,5 +1,6 @@
+use crate::build_parser;
 use crate::common::ast::{Judgment, MonoTypeEnv, NamedVar, Type};
-use crate::common::parser::{ExpressionParser, ExpressionParserDefault, HasParseMode, NamedMode, ParseMode, ParserCore, TypeParser};
+use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 /// A recursive descent parser for the TypingML4 language.
@@ -7,15 +8,36 @@ pub struct Parser {
     core: ParserCore,
 }
 
-impl HasParseMode for Parser {
-    type Mode = NamedMode;
+
+build_parser! {
+    parser = Parser,
+    var_type = NamedVar,
+
+    primitive_parsers: [
+        IntParsing,
+        BoolParsing,
+        NilParsing,
+        GroupParsing,
+        VariableParser
+    ],
+
+    dispatch_parsers: [
+        IfExprParsing,
+        LetExprParsing,
+        FunExprParsing,
+        RecFunExprParsing,
+        MatchExprParsing
+    ],
+
+    binop_chain: [
+        { LtExprParsing },
+        { ConsExprParsing },
+        { AddExprParsing, SubExprParsing },
+        { MulExprParsing },
+        { AppExprParsing }
+    ]
 }
 
-impl ExpressionParser<NamedVar> for Parser {
-    fn core(&mut self) -> &mut ParserCore {
-        &mut self.core
-    }
-}
 
 impl TypeParser for Parser {
     fn core(&mut self) -> &mut ParserCore {
@@ -71,12 +93,12 @@ impl Parser {
 
     // --- Type Environment and Type Parsing ---
     fn parse_type_env(&mut self) -> Result<MonoTypeEnv, String> {
-        type M = NamedMode;
+        type M = NamedVariableParser;
         let mut env = MonoTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
 
-            let var = M::parse_variable(&mut self.core)?;
+            let var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
             self.core.expect(Token::Colon)?;
             let ty = self.parse_type()?;
             env.push((var, ty));

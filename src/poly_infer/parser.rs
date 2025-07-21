@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::common::ast::{Type, PolyTypeEnv, TyScheme, TypeVar, Judgment};
-use crate::common::parser::{ExpressionParser, HasParseMode, NamedMode, ParseMode, ParserCore, TypeParser, ExpressionParserDefault};
+use crate::build_parser;
+use crate::common::ast::{Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
+use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 
@@ -12,16 +13,33 @@ pub struct Parser {
     next_parser_var_id: usize,
 }
 
-impl HasParseMode for Parser {
-    type Mode = NamedMode;
-}
+build_parser! {
+    parser = Parser,
+    var_type = NamedVar,
 
-impl ExpressionParser<
-    <<Parser as HasParseMode>::Mode as ParseMode>::Var
-> for Parser {
-    fn core(&mut self) -> &mut ParserCore {
-        &mut self.core
-    }
+    primitive_parsers: [
+        IntParsing,
+        BoolParsing,
+        NilParsing,
+        GroupParsing,
+        VariableParser
+    ],
+
+    dispatch_parsers: [
+        IfExprParsing,
+        LetExprParsing,
+        FunExprParsing,
+        RecFunExprParsing,
+        MatchExprParsing
+    ],
+
+    binop_chain: [
+        { LtExprParsing },
+        { ConsExprParsing },
+        { AddExprParsing, SubExprParsing },
+        { MulExprParsing },
+        { AppExprParsing }
+    ]
 }
 
 impl TypeParser for Parser {
@@ -97,11 +115,11 @@ impl Parser {
 
     // --- Type Environment and Type Parsing ---
     fn parse_type_env(&mut self) -> Result<PolyTypeEnv, String> {
-        type M = NamedMode;
+        type M = NamedVariableParser;
         let mut env = PolyTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
-            let var = M::parse_variable(&mut self.core)?;
+            let var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
             self.core.expect(Token::Colon)?;
             let scheme = self.parse_type_scheme()?;
             env.push((var, scheme));

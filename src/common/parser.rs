@@ -1,34 +1,4 @@
-use crate::common::{ast::{DBIndex, Env, Expr, NamedEnv, NamedVar, NamelessEnv, NamelessVar, Op, Type, Value, Variable}, tokenizer::Token};
-
-pub trait Mode {
-    type Var: std::fmt::Display + Clone;
-}
-
-pub struct Named;
-pub struct Nameless;
-
-impl Mode for Named {
-    type Var = NamedVar;
-}
-
-impl Mode for Nameless {
-    type Var = NamelessVar;
-}
-
-// The new FromExpr trait, which acts as the "caster".
-pub trait FromVar: Variable {
-    type Env;
-}
-
-// Implement the trait for NamedVar
-impl FromVar for NamedVar {
-    type Env = NamedEnv;
-}
-
-// Implement the trait for NamelessVar
-impl FromVar for NamelessVar {
-    type Env = NamelessEnv;
-}
+use crate::common::{ast::{DBIndex, Expr, NamedVar, NamelessVar, Op, Type, Value, Variable}, tokenizer::Token};
 
 pub struct ParserCore {
     tokens: Vec<Token>,
@@ -65,16 +35,600 @@ impl ParserCore {
             None => Err(format!("Expected token {:?}, but found end of input.", expected)),
         }
     }
+}
 
-    // pub fn next_var(&mut self) -> Result<Var, String> {
-    //     match self.peek().cloned() {
-    //         Some(Token::Ident(name)) => {
-    //             self.advance();
-    //             Ok(Var(name))
-    //         }
-    //         _ => Err("Expected an identifier.".to_string()),
-    //     }
-    // }
+pub trait BaseParser {
+    type V: Variable;
+    fn core(&mut self) -> &mut ParserCore;
+}
+
+pub trait HasHandle {
+    //fn handle(&mut self) -> Option<Token>;
+    fn check(token: &Token) -> bool;
+}
+
+// The base trait for any parser that handles expressions.
+pub trait ExpressionParser : BaseParser {
+    fn parse_expr(&mut self) -> Result<Expr<Self::V>, String>;
+    fn parse_atom(&mut self) -> Result<Expr<Self::V>, String>;
+}
+
+#[macro_export]
+macro_rules! __internal_build_parser_logic {
+    // -- Internal Rule: Recursive Step --
+    // This is the main recursive rule. It processes one level of the precedence
+    // chain and then calls itself on the rest of the chain.
+    (
+        // General info passed through the recursion
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+        primitive_parsers = [ $( $primitive_trait:ident ),* ],
+        dispatch_parsers = [ $( $dispatch_trait:ident ),* ],
+        first_trait_overall = $first_trait_overall:ident,
+        // Accumulator for generated methods
+        methods = { $( $methods:tt )* },
+        // Accumulator for all trait names that need to be implemented
+        all_traits = { $( $all_traits:tt )* },
+        // The current level being processed, and the rest of the chain
+        chain = [
+            { $first_current:ident $(, $rest_current:ident)* }, // Current level
+            { $first_next:ident $(, $rest_next:ident)* }       // Next level
+            $(, $tail:tt )* // The rest
+        ]
+    ) => {
+        paste::paste! {
+            // Recurse, adding the new method and traits to the accumulators.
+            $crate::__internal_build_parser_logic! {
+                parser = $parser_struct,
+                var_type = $var,
+                primitive_parsers = [ $( $primitive_trait ),* ],
+                dispatch_parsers = [ $( $dispatch_trait ),* ],
+                first_trait_overall = $first_trait_overall,
+                methods = {
+                    $( $methods )*
+
+                    // The new method for the current level. It's named after the first trait.
+                    fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                        // It calls the parser for the *next* level of precedence.
+                        let mut lhs = self.[<parse_ $first_next:lower _level>]()?;
+                        loop {
+                            let maybe_op = {
+                                let mut op = None;
+                                if op.is_none() { op = <Self as $crate::common::parser::$first_current>::handle(self); }
+                                $( if op.is_none() { op = <Self as $crate::common::parser::$rest_current>::handle(self); } )*
+                                op
+                            };
+                            if let Some(op) = maybe_op {
+                                let rhs = if <Self as $crate::common::parser::$first_current>::is_right_assoc() {
+                                    self.[<parse_ $first_current:lower _level>]()?
+                                } else {
+                                    self.[<parse_ $first_next:lower _level>]()?
+                                };
+                                lhs = $crate::common::ast::Expr::BinOp(Box::new(lhs), op, Box::new(rhs), false);
+                            } else { break; }
+                        }
+                        Ok(lhs)
+                    }
+                },
+                all_traits = { $( $all_traits )* $first_current, $( $rest_current, )* },
+                // The 'next' level and the tail form the new chain for the next iteration.
+                chain = [ { $first_next $(, $rest_next)* } $(, $tail)* ]
+            }
+        }
+    };
+
+    // -- Internal Rule: Base Case --
+    // This rule is called for the very last level of the chain. It generates ALL final code.
+    (
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+        primitive_parsers = [ $( $primitive_trait:ident ),* ],
+        dispatch_parsers = [ $( $dispatch_trait:ident ),* ],
+        first_trait_overall = $first_trait_overall:ident,
+        methods = { $( $methods:tt )* },
+        all_traits = { $( $all_traits:ident, )* },
+        // The chain only has one element left, which triggers this base case.
+        chain = [ { $first_current:ident $(, $rest_current:ident)* } ]
+    ) => {
+        // --- DEFINITIVE FIX: Generate all impls in the correct order here ---
+
+        // 1. Implement all the collected binop traits
+        $(
+            impl $crate::common::parser::$all_traits for $parser_struct {}
+        )*
+        // Implement the traits from the final level
+        impl $crate::common::parser::$first_current for $parser_struct {}
+        $(
+            impl $crate::common::parser::$rest_current for $parser_struct {}
+        )*
+
+        paste::paste! {
+            // 2. Generate the single `impl Parser` block with all chained methods.
+            impl $parser_struct {
+                $( $methods )*
+
+                // The method for the final level of the chain.
+                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                    // It calls `parse_atom` to terminate the recursion.
+                    let mut lhs = self.parse_atom()?;
+                    loop {
+                        let maybe_op = {
+                            let mut op = None;
+                            if op.is_none() { op = <Self as $crate::common::parser::$first_current>::handle(self); }
+                            $( if op.is_none() { op = <Self as $crate::common::parser::$rest_current>::handle(self); } )*
+                            op
+                        };
+                        if let Some(op) = maybe_op {
+                            let rhs = if <Self as $crate::common::parser::$first_current>::is_right_assoc() {
+                                self.[<parse_ $first_current:lower _level>]()?
+                            } else {
+                                self.parse_atom()?
+                            };
+                            lhs = $crate::common::ast::Expr::BinOp(Box::new(lhs), op, Box::new(rhs), false);
+                        } else { break; }
+                    }
+                    Ok(lhs)
+                }
+            }
+        }
+
+        // 3. Implement the `ExpressionParser` trait. This is now safe because
+        //    the `impl Parser` block with all the `parse_*_level` methods has been defined.
+        impl $crate::common::parser::ExpressionParser for $parser_struct {
+            fn parse_expr(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                if let Some(token) = self.core().peek() {
+                    $(
+                        if <Self as $crate::common::parser::$dispatch_trait>::check(token) {
+                            return <Self as $crate::common::parser::$dispatch_trait>::parse(self);
+                        }
+                    )*
+                }
+                // Call the generated method for the highest precedence level.
+                // The name is generated from the `first_trait_overall` we passed down.
+                paste::paste! {
+                    self.[<parse_ $first_trait_overall:lower _level>]()
+                }
+            }
+
+            fn parse_atom(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                if let Some(token) = self.core().peek().cloned() {
+                    $(
+                        if <Self as $crate::common::parser::$dispatch_trait>::check(&token) {
+                            return <Self as $crate::common::parser::$dispatch_trait>::parse(self);
+                        }
+                    )*
+
+                    $(
+                        if <Self as $crate::common::parser::$primitive_trait>::check(&token) {
+                            return <Self as $crate::common::parser::$primitive_trait>::parse(self);
+                        }
+                    )*
+                }
+                Err(format!("Unexpected token at atomic level: {:?}", self.core().peek()))
+            }
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! build_parser {
+    (
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+
+        primitive_parsers: [ $( $primitive_trait:ident ),* ],
+        dispatch_parsers: [ $( $dispatch_trait:ident ),* ],
+        // The signature now destructures the chain to get the first element,
+        // which allows us to pass it down to the helper macro.
+        binop_chain: [ { $first_trait_in_chain:ident $(, $_rest:ident)* } $(, $rest_chain_entry:tt)* ]
+    ) => {
+        // Phase 1: Implement the primitive and dispatch traits.
+        $(
+            impl $crate::common::parser::$primitive_trait for $parser_struct {}
+        )*
+        $(
+            impl $crate::common::parser::$dispatch_trait for $parser_struct {}
+        )*
+
+        // Phase 2: Kick off the external, robust recursive macro.
+        // This single call generates all binop `impl Trait`, the `impl Parser`,
+        // and the `impl ExpressionParser` blocks in the correct order.
+        $crate::__internal_build_parser_logic! {
+            parser = $parser_struct,
+            var_type = $var,
+            primitive_parsers = [ $( $primitive_trait ),* ],
+            dispatch_parsers = [ $( $dispatch_trait ),* ],
+            first_trait_overall = $first_trait_in_chain,
+            methods = {},
+            all_traits = {},
+            // Pass the entire reconstructed chain to the external helper.
+            chain = [ { $first_trait_in_chain $(, $_rest)* } $(, $rest_chain_entry)* ]
+        }
+
+        // Phase 3: Implement the BaseParser trait.
+        impl $crate::common::parser::BaseParser for $parser_struct {
+            type V = $var;
+            fn core(&mut self) -> &mut $crate::common::parser::ParserCore {
+                &mut self.core
+            }
+        }
+    };
+}
+
+
+
+/// Primitive Parsing Traits
+pub trait IntParsing : BaseParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::Int(_)) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        let token = self.core().peek().cloned();
+        match token {
+            Some(Token::Int(n)) => {
+                self.core().advance();
+                Ok(Expr::Int(n))
+            }
+            _ => panic!("Expected int"),
+        }
+    }
+}
+
+pub trait BoolParsing : BaseParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::Bool(_)) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        let token = self.core().peek().cloned();
+        match token {
+            Some(Token::Bool(b)) => {
+                self.core().advance();
+                Ok(Expr::Bool(b))
+            }
+            _ => panic!("Expected bool"),
+        }
+    }
+}
+
+pub trait NilParsing : BaseParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::Nil) }
+
+    fn handle(&mut self) -> Option<Token> {
+        if self.core().peek() == Some(&Token::Nil) {
+            self.core().advance();
+            return Some(Token::Nil)
+        }
+        None
+    }
+    
+    fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        let token = self.core().peek().cloned();
+        match token {
+            Some(Token::Nil) => {
+                self.core().advance();
+                Ok(Expr::Nil)
+            }
+            _ => panic!("Expected nil"),
+        }
+    }
+}
+
+//--------------------------------------------------------------------//
+// 1. Helper Trait
+//--------------------------------------------------------------------//
+/// Defines the logic for how a specific variable type (like `NamedVar` or
+/// `NamelessVar`) should be created from a token.
+pub trait ParseableVariable: Sized {
+    /// Tries to create a variable from the given token.
+    /// Returns `Some(variable)` on success or `None` if the token
+    /// does not represent a valid variable of this type.
+    fn from_token(token: &Token) -> Option<Self>;
+    fn has_explicit_bindings() -> bool;
+}
+
+
+//--------------------------------------------------------------------//
+// 2. Main `VariableParser` Trait
+//--------------------------------------------------------------------//
+/// The main trait for parsing variables. The `build_parser!` macro will
+/// generate `impl VariableParser for Parser {}`.
+pub trait VariableParser: BaseParser {
+    /// This method now has a default implementation that works for any
+    /// variable type that implements our `ParseableVariable` helper trait.
+    fn check(token: &Token) -> bool { true }
+    fn parse(&mut self) -> Result<Expr<Self::V>, String>
+    where
+        Self::V: ParseableVariable, // This bound connects the two traits
+    {
+        // Peek at the next token without consuming it.
+        let token = self.core().peek().ok_or_else(|| "Unexpected end of input while parsing variable".to_string())?;
+
+        // Use the helper trait to try to create the variable.
+        if let Some(var) = Self::V::from_token(token) {
+            self.core().advance(); // Success! Consume the token.
+            Ok(Expr::Var(var))
+        } else {
+            // The token was not a valid variable of the expected type.
+            Err(format!("Token {:?} cannot be parsed as a variable.", token))
+        }
+    }
+
+    /// Parses a list of environment bindings. The logic dispatched is based on the `var_type`.
+    fn parse_env_list(&mut self) -> Result<Vec<(Self::V, Value<Self::V>)>, String>
+    where
+        Self: ValueParser, // Needed to call `self.parse_value()`
+        Self::V: ParseableVariable + Clone, // `Clone` is needed for the nameless var logic
+    {
+        // Handle empty environment case for both types
+        if self.core().peek() == Some(&Token::RParen) || self.core().peek() == Some(&Token::Turnstile) {
+            return Ok(vec![]);
+        }
+
+        // Dispatch to the correct parsing logic based on the variable type.
+        if Self::V::has_explicit_bindings() {
+            // --- Logic for Named Variables (`var = val`) ---
+            let mut bindings = vec![];
+            loop {
+                let var = self.parse()?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+                self.core().expect(Token::Equals)?;
+                let val = self.parse_value()?;
+                bindings.push((var, val));
+
+                if self.core().peek() == Some(&Token::Comma) {
+                    self.core().advance();
+                } else {
+                    break;
+                }
+            }
+            Ok(bindings)
+        } else {
+            // --- Logic for Nameless Variables (list of values) ---
+            let mut values = vec![];
+            loop {
+                let val = self.parse_value()?;
+                values.push(val);
+
+                if self.core().peek() == Some(&Token::Comma) {
+                    self.core().advance();
+                } else {
+                    break;
+                }
+            }
+            // Create bindings with the correct placeholder binder.
+            let bindings = values
+                .into_iter()
+                .filter_map(|val| {
+                    // The binder is a placeholder created from the `.` token.
+                    Self::V::from_token(&Token::Dot).map(|binder| (binder, val))
+                })
+                .collect();
+            Ok(bindings)
+        }
+    }
+}
+
+
+//--------------------------------------------------------------------//
+// 3. Implementation for `NamedVar`
+//--------------------------------------------------------------------//
+/// Implements the variable creation logic for named variables.
+impl ParseableVariable for NamedVar {
+    fn from_token(token: &Token) -> Option<Self> {
+        // A NamedVar is created from an `Ident` token.
+        if let Token::Ident(name) = token {
+            Some(NamedVar(name.clone()))
+        } else {
+            None // Any other token is not a named variable.
+        }
+    }
+
+    fn has_explicit_bindings() -> bool {
+        true // Named variables use `var = val`.
+    }
+}
+
+
+//--------------------------------------------------------------------//
+// 4. Implementation for `NamelessVar`
+//--------------------------------------------------------------------//
+/// Implements the variable creation logic for de Bruijn indexed variables.
+impl ParseableVariable for NamelessVar {
+    fn from_token(token: &Token) -> Option<Self> {
+        // A NamelessVar is created from either a `#` or `.` token.
+        match token {
+            Token::HashVar(n) => Some(NamelessVar(DBIndex(*n as usize))),
+            Token::Dot => Some(NamelessVar(DBIndex(0))), // Special case for the dot syntax
+            _ => None, // Any other token is not a nameless variable.
+        }
+    }
+
+    fn has_explicit_bindings() -> bool {
+        true // Named variables use `var = val`.
+    }
+}
+
+pub trait GroupParsing : ExpressionParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::LParen) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        self.core().advance();
+        let expr = self.parse_expr()?;
+        self.core().expect(Token::RParen)?;
+        Ok(mark_expr_paren(expr))
+    }
+}
+
+// BinOp Parsing Traits
+pub trait AddExprParsing : ExpressionParser + IntParsing {
+    fn check (token: &Token) -> bool {
+        matches!(token, Token::Plus)
+    }
+
+    fn handle(&mut self) -> Option<Op> {
+        if self.core().peek() == Some(&Token::Plus) {
+            self.core().advance();
+            return Some(Op::Add)
+        }
+        None
+    }
+
+    fn is_right_assoc() -> bool { false }
+}
+
+pub trait SubExprParsing : ExpressionParser + IntParsing {
+    fn check (token: &Token) -> bool {
+        matches!(token, Token::Minus)
+    }
+
+    fn handle(&mut self) -> Option<Op> {
+        if self.core().peek() == Some(&Token::Minus) {
+            self.core().advance();
+            return Some(Op::Sub)
+        }
+        None
+    }
+
+    fn is_right_assoc() -> bool { false }
+}
+
+pub trait MulExprParsing : ExpressionParser + IntParsing {
+    fn check (token: &Token) -> bool {
+        matches!(token, Token::Star)
+    }
+
+    fn handle(&mut self) -> Option<Op> {
+        if self.core().peek() == Some(&Token::Star) {
+            self.core().advance();
+            return Some(Op::Mul)
+        }
+        None
+    }
+
+    fn is_right_assoc() -> bool { false }
+}
+
+pub trait  LtExprParsing : ExpressionParser + IntParsing + BoolParsing {
+    fn check (token: &Token) -> bool {
+        matches!(token, Token::Lt)
+    }
+
+    fn handle(&mut self) -> Option<Op> {
+        if self.core().peek() == Some(&Token::Lt) {
+            self.core().advance();
+            return Some(Op::Lt)
+        }
+        None
+    }
+
+    fn is_right_assoc() -> bool { false }
+}
+
+pub trait ConsExprParsing : ExpressionParser + NilParsing {
+    fn check (token: &Token) -> bool {
+        matches!(token, Token::ColonColon)
+    }
+
+    fn handle(&mut self) -> Option<Op> {
+        if self.core().peek() == Some(&Token::ColonColon) {
+            self.core().advance();
+            return Some(Op::Cons)
+        }
+        None
+    }
+
+    fn is_right_assoc() -> bool { true }
+}
+
+pub trait AppExprParsing : ExpressionParser + VariableParser {
+    fn check(_: &Token) -> bool { true }
+
+    fn handle(&mut self) -> Option<Op> {
+        Some(Op::App)
+    }
+
+    fn is_right_assoc() -> bool { false }
+}
+
+// Dispatch Parsing Traits
+pub trait IfExprParsing : ExpressionParser + BoolParsing {
+    fn check(token: &Token) -> bool { matches!(token, Token::If) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        self.core().advance(); // consume 'if'
+        let cond = self.parse_expr()?;
+        self.core().expect(Token::Then)?;
+        let then_branch = self.parse_expr()?;
+        self.core().expect(Token::Else)?;
+        let else_branch = self.parse_expr()?;
+        Ok(Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch), false))
+    }
+}
+
+pub trait LetExprParsing : ExpressionParser + VariableParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::Let) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String>
+    where
+        Self::V: ParseableVariable {
+        self.core().advance(); // consume 'let'
+        let var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        self.core().expect(Token::Equals)?;
+        let bound_expr = self.parse_expr()?;
+        self.core().expect(Token::In)?;
+        let cont = self.parse_expr()?;
+        Ok(Expr::Let(var, Box::new(bound_expr), Box::new(cont), false))
+    }
+}
+pub trait FunExprParsing : ExpressionParser + VariableParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::Fun) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String>     where
+        Self::V: ParseableVariable {
+        self.core().advance(); // consume 'fun'
+        let param = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        self.core().expect(Token::Arrow)?;
+        let body = self.parse_expr()?;
+        Ok(Expr::Fun(param, Box::new(body), false))
+    }
+}
+
+pub trait RecFunExprParsing : ExpressionParser + FunExprParsing{
+    fn check(token: &Token) -> bool { matches!(token, Token::Rec) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String>     where
+        Self::V: ParseableVariable {
+        self.core().advance(); // consume 'let rec'
+        let func_name = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        self.core().expect(Token::Equals)?;
+        let body = self.parse_expr()?;
+        self.core().expect(Token::In)?;
+        let cont = self.parse_expr()?;
+        if let Expr::Fun(param, fun_body, _) = body {
+            Ok(Expr::LetRec(func_name, param, fun_body, Box::new(cont), false))
+        } else { 
+            Err("Expected a function definition after 'let rec ='".to_string()) 
+        }
+    }
+}
+
+pub trait MatchExprParsing: ExpressionParser + ConsExprParsing + VariableParser {
+    fn check(token: &Token) -> bool { matches!(token, Token::Match) }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String>     where
+        Self::V: ParseableVariable {
+        self.core().advance(); // consume 'match'
+        let expr_to_match = self.parse_expr()?;
+        self.core().expect(Token::With)?;
+        self.core().expect(Token::Nil)?;
+        self.core().expect(Token::Arrow)?;
+        let nil_case = self.parse_expr()?;
+        self.core().expect(Token::Bar)?;
+        let head_var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        self.core().expect(Token::ColonColon)?;
+        let tail_var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        self.core().expect(Token::Arrow)?;
+        let cons_case = self.parse_expr()?;
+        Ok(Expr::Match(Box::new(expr_to_match), Box::new(nil_case), head_var, tail_var, Box::new(cons_case), false))
+    }
 }
 
 /// A helper function to mark an expression as having been parsed inside parentheses.
@@ -92,141 +646,46 @@ fn mark_expr_paren<V>(expr: Expr<V>) -> Expr<V> where V: Variable
     }
 }
 
-pub trait ParseMode {
-    type Var: std::fmt::Display + Clone + Variable;
+pub struct NamedVariableParser;
 
-    fn parse_variable(core: &mut ParserCore) -> Result<Self::Var, String>;
+impl BaseParser for NamedVariableParser {
+    type V = NamedVar;
 
-    fn parse_env_list<P>(p: &mut P) -> Result<Env<Self::Var>, String>
-    where
-        P: ValueParser<Self::Var> + ?Sized;
-}
-
-pub struct NamedMode;
-
-impl ParseMode for NamedMode {
-    type Var = NamedVar;
-
-    fn parse_variable(core: &mut ParserCore) -> Result<NamedVar, String> {
-        match core.peek().cloned() {
-            Some(Token::Ident(name)) => {
-                core.advance();
-                Ok(NamedVar(name))
-            }
-            _ => Err("Expected an identifier.".to_string()),
-        }
-    }
-
-    fn parse_env_list<P>(value_parser: &mut P) -> Result<Vec<(Self::Var, Value<Self::Var>)>, String>
-    where
-        P: ValueParser<Self::Var> + ?Sized
-    {
-        let mut bindings = vec![];
-        if value_parser.core().peek() == Some(&Token::RParen) || value_parser.core().peek() == Some(&Token::Turnstile) {
-            return Ok(bindings);
-        }
-        loop {
-            let var = Self::parse_variable(value_parser.core())?;
-            value_parser.core().expect(Token::Equals)?;
-            let val = value_parser.parse_value()?;
-            bindings.push((var, val));
-            if value_parser.core().peek() == Some(&Token::Comma) {
-                value_parser.core().advance();
-            } else {
-                break;
-            }
-        }
-        Ok(bindings)
+    fn core(&mut self) -> &mut ParserCore {
+        todo!()
     }
 }
 
-pub struct NamelessMode;
-
-impl ParseMode for NamelessMode {
-    type Var = NamelessVar;
-    fn parse_variable(core: &mut ParserCore) -> Result<NamelessVar, String> {
-        match core.peek().cloned() {
-            Some(Token::HashVar(n)) => {
-                core.advance();
-                Ok(NamelessVar(DBIndex(n as usize)))
-            },
-            Some(Token::Dot) => {
-                core.advance();
-                Ok(NamelessVar(DBIndex(0 as usize))) // The internal representation for '.'
-            }
-            _ => Err("Expected a de Bruijn index starting with '#', e.g., '#1'.".to_string()),
-        }
-    }
-
-    fn parse_env_list<P>(value_parser: &mut P) -> Result<Env<Self::Var>, String>
-    where
-        P: ValueParser<Self::Var> + ?Sized,
-    {
-        if value_parser.core().peek() == Some(&Token::Turnstile) {
-            return Ok(vec![]);
-        }
-
-        // 1. Parse all values into a temporary list.
-        let mut values = vec![];
-        loop {
-            let val = value_parser.parse_value()?;
-            values.push(val);
-
-            if value_parser.core().peek() == Some(&Token::Comma) {
-                value_parser.core().advance();
-            } else {
-                break;
-            }
-        }
-
-        // 2. Create bindings with the correct placeholder binder.
-        // The binder is a `NamelessVar` with index 0, which displays as ".".
-        let bindings = values
-            .into_iter()
-            .map(|val| {
-                let binder = NamelessVar(DBIndex(0));
-                (binder, val)
-            })
-            .collect();
-
-        Ok(bindings)
-    }
+pub trait ValueParser:  ExpressionParser {
+    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr<Self::V>, String>;
 }
 
-pub trait HasParseMode {
-    type Mode: ParseMode;
-}
-
-pub trait ValueParser<E: Variable>: ExpressionParser<E> {
-    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr<E>, String>;
-}
-
-pub trait ValueParserDefault<E: Variable> : ValueParser<E> {
+pub trait ValueParserDefault: ValueParser {
     // fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<E>)>, String>;
-    fn parse_value(&mut self) -> Result<Value<E>, String>;
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value<E>, String>;
-    fn parse_list_tail(&mut self, left: Value<E>, paren: bool) -> Result<Value<E>, String>;
-    fn parse_single_value(&mut self) -> Result<Value<E>, String>;
+    fn parse_value(&mut self) -> Result<Value<Self::V>, String>;
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value<Self::V>, String>;
+    fn parse_list_tail(&mut self, left: Value<Self::V>, paren: bool) -> Result<Value<Self::V>, String>;
+    fn parse_single_value(&mut self) -> Result<Value<Self::V>, String>;
     fn collect_tokens_until_rbracket(&mut self) -> Vec<Token>;
-    fn parse_func_val(&mut self, env: Vec<(E, Value<E>)>) -> Result<Value<E>, String>;
-    fn parse_rec_func_val(&mut self, env: Vec<(E, Value<E>)>) -> Result<Value<E>, String>;
+    fn parse_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String>;
+    fn parse_rec_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String>;
 }
 
-impl<P, E:Variable> ValueParserDefault<E> for P
+impl<P> ValueParserDefault for P
 where
-    P: ValueParser<E> + ?Sized,
-    <P as HasParseMode>::Mode: ParseMode<Var = E>
+    P: ValueParser + VariableParser + ?Sized,
+    P::V: ParseableVariable
 {
-    fn parse_value(&mut self) -> Result<Value<E>, String> {
+    fn parse_value(&mut self) -> Result<Value<Self::V>, String> {
         self.parse_list_value(false)
     }
 
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value<E>, String> {
+    fn parse_list_value(&mut self, paren: bool) -> Result<Value<Self::V>, String> {
         let left = self.parse_single_value()?;
         self.parse_list_tail(left, paren)
     }
 
-    fn parse_single_value(&mut self) -> Result<Value<E>, String> {
+    fn parse_single_value(&mut self) -> Result<Value<Self::V>, String> {
         match self.core().peek().cloned() {
             Some(Token::Int(n)) => { self.core().advance(); Ok(Value::Int(n)) }
             Some(Token::Bool(b)) => { self.core().advance(); Ok(Value::Bool(b)) }
@@ -234,7 +693,7 @@ where
                 self.core().advance();
                 let saved_pos = self.core().pos();
                 
-                if let Ok(env) = <<Self as HasParseMode>::Mode as ParseMode>::parse_env_list(self) {
+                if let Ok(env) = <Self as VariableParser>::parse_env_list(self) {
                     if self.core().peek() == Some(&Token::RParen) {
                         self.core().advance();
                         if self.core().peek() == Some(&Token::LBracket) {
@@ -261,7 +720,7 @@ where
         }
     }
 
-    fn parse_list_tail(&mut self, left: Value<E>, paren: bool) -> Result<Value<E>, String> {
+    fn parse_list_tail(&mut self, left: Value<Self::V>, paren: bool) -> Result<Value<Self::V>, String> {
         if self.core().peek() == Some(&Token::ColonColon) {
             self.core().advance();
             let right = self.parse_list_value(false)?;
@@ -286,232 +745,25 @@ where
         tokens
     }
 
-    fn parse_func_val(&mut self, env: Vec<(E, Value<E>)>) -> Result<Value<E>, String> {
+    fn parse_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String> {
         self.core().expect(Token::Fun)?;
-        let param = <Self::Mode as ParseMode>::parse_variable(self.core())?;
+        let param = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
         self.core().expect(Token::Arrow)?;
         let body_tokens = self.collect_tokens_until_rbracket();
         let body = self.parse_inner_expr(body_tokens)?;
         Ok(Value::FunVal(param, Box::new(body), env, false))
     }
 
-    fn parse_rec_func_val(&mut self, env: Vec<(E, Value<E>)>) -> Result<Value<E>, String> {
+    fn parse_rec_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String> {
         self.core().expect(Token::Rec)?;
-        let name = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
+        let name = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
         self.core().expect(Token::Equals)?;
         self.core().expect(Token::Fun)?;
-        let param = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
+        let param = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
         self.core().expect(Token::Arrow)?;
         let body_tokens = self.collect_tokens_until_rbracket();
         let body = self.parse_inner_expr(body_tokens)?;
         Ok(Value::RecFunVal(name, param, Box::new(body), env, false))
-    }
-}
-
-pub trait ExpressionParser<V: Variable>: HasParseMode <Mode: ParseMode<Var = V>> {
-    fn core(&mut self) -> &mut ParserCore;
-}
-
-pub trait ExpressionParserDefault<E: Variable> : ExpressionParser<E> {
-    type M;
-    fn parse_int(&mut self) -> Result<Expr<E>, String>;
-    fn parse_expr(&mut self) -> Result<Expr<E>, String>;
-    fn parse_let_expr(&mut self) -> Result<Expr<E>, String>;
-    fn parse_if_expr(&mut self) -> Result<Expr<E>, String>;
-    fn parse_fun_expr(&mut self) -> Result<Expr<E>, String>;
-    fn parse_match_expr(&mut self) -> Result<Expr<E>, String>;
-    fn parse_lt(&mut self) -> Result<Expr<E>, String>;
-    fn parse_cons(&mut self) -> Result<Expr<E>, String>;
-    fn parse_add_sub(&mut self) -> Result<Expr<E>, String>;
-    fn parse_mul(&mut self) -> Result<Expr<E>, String>;
-    fn parse_app(&mut self) -> Result<Expr<E>, String>;
-    fn parse_atom(&mut self) -> Result<Expr<E>, String>;
-}
-
-/// A trait that provides default implementations for parsing all common expressions.
-impl<T, V:Variable> ExpressionParserDefault<V> for T
-where
-    V: Variable,
-    T: HasParseMode<Mode: ParseMode<Var = V>> + ExpressionParser<V> + ?Sized,
-{
-    type M = <T as HasParseMode>::Mode;
-    // Each implementor must provide access to its core and a way to get a variable.
-    fn parse_int(&mut self) -> Result<Expr<V>, String> {
-        let token = self.core().peek().cloned();
-        match token {
-            Some(Token::Int(n)) => {
-                self.core().advance();
-                Ok(Expr::Int(n))
-            }
-            _ => panic!("Expected int"),
-        }
-    }
-    
-    // All expression parsing methods are now default methods on this trait.
-    // They operate on the required `core` method.
-    fn parse_expr(&mut self) -> Result<Expr<V>, String> {
-        match self.core().peek() {
-            Some(Token::Let) => self.parse_let_expr(),
-            Some(Token::If) => self.parse_if_expr(),
-            Some(Token::Fun) => self.parse_fun_expr(),
-            Some(Token::Match) => self.parse_match_expr(),
-            _ => self.parse_lt(),
-        }
-    }
-    
-    fn parse_let_expr(&mut self) -> Result<Expr<V>, String> {
-        self.core().advance(); // consume 'let'
-        if self.core().peek() == Some(&Token::Rec) {
-            self.core().advance(); // consume 'rec'
-            let func_name = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
-            self.core().expect(Token::Equals)?;
-            let body = self.parse_expr()?;
-            self.core().expect(Token::In)?;
-            let cont = self.parse_expr()?;
-            if let Expr::Fun(param, fun_body, _) = body {
-                 Ok(Expr::LetRec(func_name, param, fun_body, Box::new(cont), false))
-            } else { Err("Expected a function definition after 'let rec ='".to_string()) }
-        } else {
-            let var = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
-            self.core().expect(Token::Equals)?;
-            let bound_expr = self.parse_expr()?;
-            self.core().expect(Token::In)?;
-            let cont = self.parse_expr()?;
-            Ok(Expr::Let(var, Box::new(bound_expr), Box::new(cont), false))
-        }
-    }
-
-    fn parse_if_expr(&mut self) -> Result<Expr<V>, String> {
-        self.core().advance(); // consume 'if'
-        let cond = self.parse_expr()?;
-        self.core().expect(Token::Then)?;
-        let then_branch = self.parse_expr()?;
-        self.core().expect(Token::Else)?;
-        let else_branch = self.parse_expr()?;
-        Ok(Expr::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch), false))
-    }
-
-    fn parse_fun_expr(&mut self) -> Result<Expr<V>, String> {
-        self.core().advance(); // consume 'fun'
-        let param = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
-        self.core().expect(Token::Arrow)?;
-        let body = self.parse_expr()?;
-        Ok(Expr::Fun(param, Box::new(body), false))
-    }
-
-    fn parse_match_expr(&mut self) -> Result<Expr<V>, String> {
-        self.core().advance(); // consume 'match'
-        let expr_to_match = self.parse_expr()?;
-        self.core().expect(Token::With)?;
-        self.core().expect(Token::Nil)?;
-        self.core().expect(Token::Arrow)?;
-        let nil_case = self.parse_expr()?;
-        self.core().expect(Token::Bar)?;
-        let head_var = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
-        self.core().expect(Token::ColonColon)?;
-        let tail_var = <Self as HasParseMode>::Mode::parse_variable(self.core())?;
-        self.core().expect(Token::Arrow)?;
-        let cons_case = self.parse_expr()?;
-        Ok(Expr::Match(Box::new(expr_to_match), Box::new(nil_case), head_var, tail_var, Box::new(cons_case), false))
-    }
-
-    fn parse_lt(&mut self) -> Result<Expr<V>, String> {
-        let mut lhs = self.parse_cons()?;
-        while self.core().peek() == Some(&Token::Lt) {
-            self.core().advance();
-            let rhs = self.parse_cons()?;
-            lhs = Expr::BinOp(Box::new(lhs), Op::Lt, Box::new(rhs), false);
-        }
-        Ok(lhs)
-    }
-    
-    fn parse_cons(&mut self) -> Result<Expr<V>, String> {
-        let mut lhs = self.parse_add_sub()?;
-        if self.core().peek() == Some(&Token::ColonColon) {
-            self.core().advance();
-            let rhs = self.parse_cons()?;
-            lhs = Expr::BinOp(Box::new(lhs), Op::Cons, Box::new(rhs), false);
-        }
-        Ok(lhs)
-    }
-
-    fn parse_add_sub(&mut self) -> Result<Expr<V>, String> {
-        let mut lhs = self.parse_mul()?;
-        while let Some(op_token) = self.core().peek() {
-            let op = match op_token {
-                Token::Plus => Op::Add, Token::Minus => Op::Sub, _ => break,
-            };
-            self.core().advance();
-            let rhs = self.parse_mul()?;
-            lhs = Expr::BinOp(Box::new(lhs), op, Box::new(rhs), false);
-        }
-        Ok(lhs)
-    }
-
-    fn parse_mul(&mut self) -> Result<Expr<V>, String> {
-        let mut lhs = self.parse_app()?;
-        while self.core().peek() == Some(&Token::Star) {
-            self.core().advance();
-            let rhs = self.parse_app()?;
-            lhs = Expr::BinOp(Box::new(lhs), Op::Mul, Box::new(rhs), false);
-        }
-        Ok(lhs)
-    }
-
-    fn parse_app(&mut self) -> Result<Expr<V>, String> {
-        let mut lhs = self.parse_atom()?;
-        while let Some(tok) = self.core().peek() {
-            match tok {
-                Token::Int(_) | Token::Bool(_) | Token::Ident(_) | Token::LParen | Token::Nil => {
-                    let rhs = self.parse_atom()?;
-                    lhs = Expr::App(Box::new(lhs), Box::new(rhs), false);
-                },
-                _ => break,
-            }
-        }
-        Ok(lhs)
-    }
-
-    fn parse_atom(&mut self) -> Result<Expr<V>, String> {
-        match self.core().peek().cloned() {
-            Some(Token::Minus) => {
-                self.core().advance();
-                match self.core().peek().cloned() {
-                    Some(Token::Int(n)) => {
-                        self.core().advance();
-                        Ok(Expr::Int(-(n)))
-                    }
-                    _ => {
-                        // Unary minus should apply to the next full term, not just an atom.
-                        let expr = self.parse_app()?;
-                        Ok(Expr::BinOp(Box::new(Expr::Int(0)), Op::Sub, Box::new(expr), false))
-                    }
-                }
-            }
-            Some(Token::If) => self.parse_if_expr(),
-            Some(Token::Let) => self.parse_let_expr(),
-            Some(Token::Ident(_)) | Some(Token::HashVar(_)) | Some(Token::Dot) => {
-                let var = <Self::Mode as ParseMode>::parse_variable(self.core())?;
-                Ok(Expr::Var(var))
-            },
-            Some(Token::Int(_)) => self.parse_int(),
-            Some(Token::Bool(b)) => { 
-                self.core().advance(); Ok(Expr::Bool(b)) 
-            }
-            Some(Token::LParen) => {
-                self.core().advance();
-                let expr = self.parse_expr()?;
-                self.core().expect(Token::RParen)?;
-                Ok(mark_expr_paren(expr))
-            }
-            Some(Token::Fun) => self.parse_fun_expr(),
-            Some(Token::Nil) => {
-                self.core().advance();
-                Ok(Expr::Nil)
-            },
-            Some(Token::Match) => self.parse_match_expr(),
-            _ => Err("Unexpected token found at atomic level.".to_string()),
-        }
     }
 }
 

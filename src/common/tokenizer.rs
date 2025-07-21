@@ -4,7 +4,7 @@ pub enum Token {
     Let, In, If, Then, Else, Match, With, Fun, Rec,
     
     // Nat Keywords
-    Is, Less, Than, PlusKw, TimesKw, Z, S,
+    Is, Less, Than, PlusKw, TimesKw, Z, S, Empty,
     
     // Symbols
     Equals, Bar, Minus, Plus, Star, Lt, Colon, ColonColon, Comma, Turnstile, Dot,
@@ -75,6 +75,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "times" => tokens.push(Token::TimesKw),
 
                 // ML Keywords
+                "let rec" => tokens.push(Token::Rec),
                 "let" => tokens.push(Token::Let),
                 "in" => tokens.push(Token::In),
                 "if" => tokens.push(Token::If),
@@ -83,7 +84,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "match" => tokens.push(Token::Match),
                 "with" => tokens.push(Token::With),
                 "fun" => tokens.push(Token::Fun),
-                "rec" => tokens.push(Token::Rec),
+                // "rec" => tokens.push(Token::Rec),
                 "true" | "True" => tokens.push(Token::Bool(true)),
                 "false" | "False" => tokens.push(Token::Bool(false)),
                 "evalto" => tokens.push(Token::Evalto),
