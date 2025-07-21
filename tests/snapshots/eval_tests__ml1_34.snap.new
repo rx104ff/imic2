@@ -1,6 +1,0 @@
----
-source: tests/eval_tests.rs
-assertion_line: 66
-expression: "&result"
----
-Parsing Error: Token Evalto cannot be parsed as a variable.

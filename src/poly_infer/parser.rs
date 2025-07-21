@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::build_parser;
 use crate::common::ast::{Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
-use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser};
+use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser, AppExprParsing};
 use crate::common::tokenizer::Token;
 
 

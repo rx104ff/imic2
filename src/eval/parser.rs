@@ -2,7 +2,7 @@
 
 use crate::build_parser;
 use crate::common::ast::{Expr, Judgment, NamedExpr, NamedVar, Op};
-use crate::common::parser::{BaseParser, ConsExprParsing, ExpressionParser, IfExprParsing, NamedVariableParser, ParserCore, ValueParser, VariableParser};
+use crate::common::parser::{BaseParser, ConsExprParsing, ExpressionParser, IfExprParsing, NamedVariableParser, ParserCore, ValueParser, VariableParser, LtExprParsing};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {
@@ -60,6 +60,7 @@ impl Parser {
         }?;
         self.core().expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;
+        print!("{}", expr);
         if let Some(Token::Evalto) = self.core().peek() {
             while self.core().peek().is_some() && self.core().peek() != Some(&Token::EOF) {
                 self.core().advance();

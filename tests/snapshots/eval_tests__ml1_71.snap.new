@@ -3,4 +3,4 @@ source: tests/eval_tests.rs
 assertion_line: 212
 expression: "&result"
 ---
-Parsing Error: Token With cannot be parsed as a variable.
+Parsing Error: Unexpected token at atomic level: Some(With)

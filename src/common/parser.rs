@@ -55,21 +55,14 @@ pub trait ExpressionParser : BaseParser {
 
 #[macro_export]
 macro_rules! __internal_build_parser_logic {
-    // -- Internal Rule: Recursive Step --
-    // This is the main recursive rule. It processes one level of the precedence
-    // chain and then calls itself on the rest of the chain.
     (
-        // General info passed through the recursion
         parser = $parser_struct:ty,
         var_type = $var:ty,
         primitive_parsers = [ $( $primitive_trait:ident ),* ],
         dispatch_parsers = [ $( $dispatch_trait:ident ),* ],
         first_trait_overall = $first_trait_overall:ident,
-        // Accumulator for generated methods
         methods = { $( $methods:tt )* },
-        // Accumulator for all trait names that need to be implemented
-        all_traits = { $( $all_traits:tt )* },
-        // The current level being processed, and the rest of the chain
+        all_traits = { $( $all_traits:ident, )* },
         chain = [
             { $first_current:ident $(, $rest_current:ident)* }, // Current level
             { $first_next:ident $(, $rest_next:ident)* }       // Next level
@@ -94,8 +87,14 @@ macro_rules! __internal_build_parser_logic {
                         loop {
                             let maybe_op = {
                                 let mut op = None;
-                                if op.is_none() { op = <Self as $crate::common::parser::$first_current>::handle(self); }
-                                $( if op.is_none() { op = <Self as $crate::common::parser::$rest_current>::handle(self); } )*
+                                if op.is_none() { 
+                                    op = <Self as $crate::common::parser::$first_current>::handle(self); 
+                                }
+                                $( 
+                                    if op.is_none() { 
+                                        op = <Self as $crate::common::parser::$rest_current>::handle(self); 
+                                    } 
+                                )*
                                 op
                             };
                             if let Some(op) = maybe_op {
@@ -110,15 +109,12 @@ macro_rules! __internal_build_parser_logic {
                         Ok(lhs)
                     }
                 },
-                all_traits = { $( $all_traits )* $first_current, $( $rest_current, )* },
-                // The 'next' level and the tail form the new chain for the next iteration.
+                all_traits = { $( $all_traits, )* $first_current, $( $rest_current, )* },
                 chain = [ { $first_next $(, $rest_next)* } $(, $tail)* ]
             }
         }
     };
 
-    // -- Internal Rule: Base Case --
-    // This rule is called for the very last level of the chain. It generates ALL final code.
     (
         parser = $parser_struct:ty,
         var_type = $var:ty,
@@ -127,11 +123,8 @@ macro_rules! __internal_build_parser_logic {
         first_trait_overall = $first_trait_overall:ident,
         methods = { $( $methods:tt )* },
         all_traits = { $( $all_traits:ident, )* },
-        // The chain only has one element left, which triggers this base case.
         chain = [ { $first_current:ident $(, $rest_current:ident)* } ]
     ) => {
-        // --- DEFINITIVE FIX: Generate all impls in the correct order here ---
-
         // 1. Implement all the collected binop traits
         $(
             impl $crate::common::parser::$all_traits for $parser_struct {}
@@ -172,8 +165,7 @@ macro_rules! __internal_build_parser_logic {
             }
         }
 
-        // 3. Implement the `ExpressionParser` trait. This is now safe because
-        //    the `impl Parser` block with all the `parse_*_level` methods has been defined.
+        // 3. Implement the `ExpressionParser` trait.
         impl $crate::common::parser::ExpressionParser for $parser_struct {
             fn parse_expr(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
                 if let Some(token) = self.core().peek() {
@@ -184,7 +176,6 @@ macro_rules! __internal_build_parser_logic {
                     )*
                 }
                 // Call the generated method for the highest precedence level.
-                // The name is generated from the `first_trait_overall` we passed down.
                 paste::paste! {
                     self.[<parse_ $first_trait_overall:lower _level>]()
                 }
@@ -210,19 +201,17 @@ macro_rules! __internal_build_parser_logic {
     };
 }
 
-
 #[macro_export]
 macro_rules! build_parser {
     (
         parser = $parser_struct:ty,
         var_type = $var:ty,
-
         primitive_parsers: [ $( $primitive_trait:ident ),* ],
         dispatch_parsers: [ $( $dispatch_trait:ident ),* ],
-        // The signature now destructures the chain to get the first element,
-        // which allows us to pass it down to the helper macro.
+        // The signature now destructures the chain to get the first element.
         binop_chain: [ { $first_trait_in_chain:ident $(, $_rest:ident)* } $(, $rest_chain_entry:tt)* ]
     ) => {
+
         // Phase 1: Implement the primitive and dispatch traits.
         $(
             impl $crate::common::parser::$primitive_trait for $parser_struct {}
@@ -231,9 +220,7 @@ macro_rules! build_parser {
             impl $crate::common::parser::$dispatch_trait for $parser_struct {}
         )*
 
-        // Phase 2: Kick off the external, robust recursive macro.
-        // This single call generates all binop `impl Trait`, the `impl Parser`,
-        // and the `impl ExpressionParser` blocks in the correct order.
+        // Phase 2: Kick off the internal recursive macro.
         $crate::__internal_build_parser_logic! {
             parser = $parser_struct,
             var_type = $var,
@@ -241,8 +228,9 @@ macro_rules! build_parser {
             dispatch_parsers = [ $( $dispatch_trait ),* ],
             first_trait_overall = $first_trait_in_chain,
             methods = {},
+            // Start with an empty list of traits
             all_traits = {},
-            // Pass the entire reconstructed chain to the external helper.
+            // Pass the entire reconstructed chain to the internal helper.
             chain = [ { $first_trait_in_chain $(, $_rest)* } $(, $rest_chain_entry)* ]
         }
 
@@ -321,6 +309,7 @@ pub trait ParseableVariable: Sized {
     /// Tries to create a variable from the given token.
     /// Returns `Some(variable)` on success or `None` if the token
     /// does not represent a valid variable of this type.
+    fn check(token: &Token) -> bool;
     fn from_token(token: &Token) -> Option<Self>;
     fn has_explicit_bindings() -> bool;
 }
@@ -334,13 +323,19 @@ pub trait ParseableVariable: Sized {
 pub trait VariableParser: BaseParser {
     /// This method now has a default implementation that works for any
     /// variable type that implements our `ParseableVariable` helper trait.
-    fn check(token: &Token) -> bool { true }
+    fn check(token: &Token) -> bool
+    where Self::V: ParseableVariable 
+    { 
+        Self::V::from_token(token).is_some()
+    }
+
     fn parse(&mut self) -> Result<Expr<Self::V>, String>
     where
         Self::V: ParseableVariable, // This bound connects the two traits
     {
         // Peek at the next token without consuming it.
         let token = self.core().peek().ok_or_else(|| "Unexpected end of input while parsing variable".to_string())?;
+        print!("{:?}",token);
 
         // Use the helper trait to try to create the variable.
         if let Some(var) = Self::V::from_token(token) {
@@ -412,6 +407,14 @@ pub trait VariableParser: BaseParser {
 //--------------------------------------------------------------------//
 /// Implements the variable creation logic for named variables.
 impl ParseableVariable for NamedVar {
+    fn check(token: &Token) -> bool {
+        if let Token::Ident(_) = token {
+            true
+        } else {
+            false
+        }
+    }
+
     fn from_token(token: &Token) -> Option<Self> {
         // A NamedVar is created from an `Ident` token.
         if let Token::Ident(name) = token {
@@ -432,6 +435,13 @@ impl ParseableVariable for NamedVar {
 //--------------------------------------------------------------------//
 /// Implements the variable creation logic for de Bruijn indexed variables.
 impl ParseableVariable for NamelessVar {
+    fn check(token: &Token) -> bool {
+        match token {
+            Token::HashVar(_) => true,
+            Token::Dot => true, // Special case for the dot syntax
+            _ => false, // Any other token is not a nameless variable.
+        }
+    }
     fn from_token(token: &Token) -> Option<Self> {
         // A NamelessVar is created from either a `#` or `.` token.
         match token {
@@ -539,10 +549,17 @@ pub trait ConsExprParsing : ExpressionParser + NilParsing {
 }
 
 pub trait AppExprParsing : ExpressionParser + VariableParser {
-    fn check(_: &Token) -> bool { true }
+    fn check(token: &Token) -> bool { 
+        !matches!(token, Token::ColonColon | Token::Lt | Token::Plus | Token::Minus | Token::Star | Token::Evalto)
+     }
 
     fn handle(&mut self) -> Option<Op> {
-        Some(Op::App)
+        let token = self.core().peek();
+        if matches!(token, Some(Token::ColonColon | Token::Lt | Token::Plus | Token::Minus | Token::Star |Token::Evalto)) {
+            None
+        } else {
+            Some(Op::App)
+        }
     }
 
     fn is_right_assoc() -> bool { false }
