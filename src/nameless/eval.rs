@@ -31,6 +31,38 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
         Expr::BinOp(e1, op, e2, is_paren) => {
             let d1 = derive(env, e1)?;
             let d2 = derive(env, e2)?;
+
+            if *op == Op::App {
+                return match &d1.result {
+                    NamelessValue::FunVal(param, body, closure_env, _) => {
+                        let mut new_env = (**closure_env).to_vec();
+                        new_env.push((param.clone(), d2.result.clone()));
+                        let d_body = derive(&new_env, body)?;
+                        Ok(Derivation {
+                            env: env.clone(),
+                            expr: expr.clone(),
+                            result: d_body.result.clone(),
+                            rule: "E-App".to_string(),
+                            sub_derivations: vec![d1, d2, d_body],
+                        })
+                    }
+                    NamelessValue::RecFunVal(name, param, body, closure_env, _) => {
+                        let mut new_env = (**closure_env).to_vec();
+                        new_env.push((name.clone(), d1.result.clone()));
+                        new_env.push((param.clone(), d2.result.clone()));
+                        let d_body = derive(&new_env, body)?;
+                        Ok(Derivation {
+                            env: env.clone(),
+                            expr: expr.clone(),
+                            result: d_body.result.clone(),
+                            rule: "E-AppRec".to_string(),
+                            sub_derivations: vec![d1, d2, d_body],
+                        })
+                    }
+                    _ => Err(format!("Tried to apply a non-function type: {:?}", d1.result)),
+                };
+            }
+
             let (v1, v2) = (d1.result.clone(), d2.result.clone());
 
             let (result, rule, basic_rule) = match (&v1, &v2, op) {

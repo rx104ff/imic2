@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // ML & PolyInfer Keywords
-    Let, In, If, Then, Else, Match, With, Fun, Rec,
+    Let, In, If, Then, Else, Match, With, Fun, LetRec, Rec,
     
     // Nat Keywords
     Is, Less, Than, PlusKw, TimesKw, Z, S, Empty,
@@ -61,6 +61,27 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             s = &s[2..];
         // --- Keywords and Identifiers ---
         } else if s.chars().next().map_or(false, |c| c.is_alphabetic()) {
+            if s.starts_with("let") {
+                let after_let = &s[3..];
+                // Check that "let" is a whole word
+                if after_let.is_empty() || !after_let.chars().next().unwrap().is_alphabetic() {
+                    // It's a whole word, now peek ahead for "rec"
+                    let mut temp = after_let;
+                    let whitespace_len = temp.find(|c: char| !c.is_whitespace()).unwrap_or(temp.len());
+                    temp = &temp[whitespace_len..]; // Skip whitespace
+
+                    if temp.starts_with("rec") {
+                        let after_rec = &temp[3..];
+                        // Ensure "rec" is also a whole word
+                        if after_rec.is_empty() || !after_rec.chars().next().unwrap().is_alphabetic() {
+                            tokens.push(Token::LetRec);
+                            // Advance the main slice past "let", the whitespace, and "rec"
+                            s = after_rec;
+                            continue;
+                        }
+                    }
+                }
+            }
             let end = s.find(|c: char| !c.is_alphanumeric()).unwrap_or(s.len());
             let keyword = &s[..end];
             s = &s[end..];
@@ -75,8 +96,9 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "times" => tokens.push(Token::TimesKw),
 
                 // ML Keywords
-                "let rec" => tokens.push(Token::Rec),
+                //"let rec" => tokens.push(Token::LetRec),
                 "let" => tokens.push(Token::Let),
+                "rec" => tokens.push(Token::Rec),
                 "in" => tokens.push(Token::In),
                 "if" => tokens.push(Token::If),
                 "then" => tokens.push(Token::Then),
@@ -84,7 +106,6 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "match" => tokens.push(Token::Match),
                 "with" => tokens.push(Token::With),
                 "fun" => tokens.push(Token::Fun),
-                // "rec" => tokens.push(Token::Rec),
                 "true" | "True" => tokens.push(Token::Bool(true)),
                 "false" | "False" => tokens.push(Token::Bool(false)),
                 "evalto" => tokens.push(Token::Evalto),

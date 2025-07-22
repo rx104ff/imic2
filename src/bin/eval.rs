@@ -37,6 +37,7 @@ fn main() {
     }
 
     let tokens = common::tokenizer::tokenize(&program);
+    //println!("{:?}", tokens);
     let mut parser = Parser::new(tokens);
     let judgment = match parser.parse() {
         Ok(j) => j, // The parser now correctly returns the full Judgment.

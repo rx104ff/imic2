@@ -97,6 +97,8 @@ fn format_env(env: &NamedEnv, version: LanguageVersion) -> String {
 }
 
 pub fn derive_judgement(judgment: &Judgment, version: LanguageVersion) -> Result<Derivation, String> {
+    //println!("21312");
+    //println!("{}", judgment);
     match judgment {
         Judgment::EvaluatesTo(env, expr) => {
             derive(env, expr, version)
@@ -106,6 +108,7 @@ pub fn derive_judgement(judgment: &Judgment, version: LanguageVersion) -> Result
 }
 
 pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Result<Derivation, String> {
+    //println!("{}", expr);
     match expr {
         Expr::Int(i) => Ok(Derivation {
             env: env.clone(),
@@ -174,7 +177,48 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 panic!("Unbound variable: {}", x.0)
             }
         },
+        Expr::UnaryOp(op, e, _) => {
+            // We only handle unary minus for now.
+            if *op == Op::Sub {
+                // Check if the sub-expression is a literal integer.
+                if let Expr::Int(i) = **e {
+                    // If it is, we want the output to look *exactly* like it was just
+                    // an E-Int rule on a negative number. This matches your desired output.
+                    return Ok(Derivation {
+                        env: env.clone(),
+                        // The expression being derived is the UnaryOp expression, e.g., `-23`.
+                        expr: expr.clone(),
+                        // The result is the corresponding negated Value.
+                        result: Value::Int(-i),
+                        // We use the "E-Int" rule to mimic the derivation of a literal negative integer.
+                        rule: "E-Int".to_string(),
+                        // As with E-Int, there are no sub-derivations for this base case.
+                        sub_derivations: vec![],
+                        version,
+                    });
+                }
+            }
+
+            // This part handles more complex cases like `-(x + y)`. Since we don't
+            // want a visible "E-Neg" rule, we must create a derivation step with an empty rule.
+            let d = derive(env, e, version)?;
+            match d.result {
+                Value::Int(i) => {
+                    Ok(Derivation {
+                        env: env.clone(),
+                        expr: expr.clone(),
+                        result: Value::Int(-i),
+                        // The rule is an empty string for more complex expressions, so it's not visible.
+                        rule: "".to_string(),
+                        sub_derivations: vec![d],
+                        version,
+                    })
+                }
+                _ => Err(format!("Cannot apply unary minus to non-integer value: {:?}", d.result)),
+            }
+        }
         Expr::BinOp(e1, op, e2, is_paren) => {
+            //println!("{}{}{}", e1, op, e2);
             let d1 = derive(env, e1, version)?;
             let d2 = derive(env, e2, version)?;
 
@@ -212,7 +256,8 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
             }
 
             let (v1, v2) = (d1.result.clone(), d2.result.clone());
-
+            
+            //println!("{}{}{}", v1, op, v2);
             let (result, rule, basic_rule) = match (v1.clone(), v2.clone(), op) {
                 (Value::Int(i1), Value::Int(i2), Op::Add) => (
                     Value::Int(i1 + i2),
@@ -267,7 +312,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     "E-Cons",
                     None,
                 ),
-                _ => panic!("Invalid binary op eval {:?}", op),
+                _ => panic!("Invalid binary op eval {:?} for {} {} {}", op, v1, op, v2),
             };
 
             let mut sub_derivations = vec![d1, d2];

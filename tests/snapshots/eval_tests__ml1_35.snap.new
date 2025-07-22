@@ -1,6 +1,0 @@
----
-source: tests/eval_tests.rs
-assertion_line: 72
-expression: "&result"
----
-Parsing Error: Unexpected token at atomic level: Some(Then)

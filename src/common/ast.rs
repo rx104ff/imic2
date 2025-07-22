@@ -209,6 +209,7 @@ pub enum Expr<V: Variable> {
     Fun(V, Box<Expr<V>>, bool),
     App(Box<Expr<V>>, Box<Expr<V>>, bool),
     If(Box<Expr<V>>, Box<Expr<V>>, Box<Expr<V>>, bool),
+    UnaryOp(Op, Box<Expr<V>>, bool),
     BinOp(Box<Expr<V>>, Op, Box<Expr<V>>, bool),
     Match(Box<Expr<V>>, Box<Expr<V>>, V, V, Box<Expr<V>>, bool),
     Plus(Box<Expr<V>>, Box<Expr<V>>),
@@ -340,8 +341,16 @@ impl<E> fmt::Display for Expr<E> where E: std::fmt::Display + Variable{
                 let s = format!("if {} then {} else {}", c, t, e);
                 if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
             },
+            Expr::UnaryOp(op, e, is_paren) => {
+                let s = format!("{}{}", op, e);
+                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+            }
             Expr::BinOp(e1, op, e2, is_paren) => {
-                let s = format!("{} {} {}", e1, op, e2);
+                let s = if *op == Op::App {
+                    format!("{} {}", e1, e2)
+                } else {
+                    format!("{} {} {}", e1, op, e2)
+                };
                 if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
             }
             Expr::Fun(p, b, is_paren) => {

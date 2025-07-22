@@ -25,6 +25,10 @@ build_parser! {
         VariableParser
     ],
 
+    unary_parsers: [
+        UnaryMinusParser
+    ],
+
     dispatch_parsers: [
         IfExprParsing,
         LetExprParsing,

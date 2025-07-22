@@ -21,11 +21,15 @@ build_parser! {
         VariableParser
     ],
 
+    unary_parsers: [
+        UnaryMinusParser
+    ],
+
     dispatch_parsers: [
         IfExprParsing,
-        LetExprParsing,
         FunExprParsing,
         RecFunExprParsing,
+        LetExprParsing,
         MatchExprParsing
     ],
 
@@ -60,7 +64,7 @@ impl Parser {
         }?;
         self.core().expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;
-        print!("{}", expr);
+        //print!("{}", expr);
         if let Some(Token::Evalto) = self.core().peek() {
             while self.core().peek().is_some() && self.core().peek() != Some(&Token::EOF) {
                 self.core().advance();

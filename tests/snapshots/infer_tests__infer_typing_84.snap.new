@@ -1,6 +1,0 @@
----
-source: tests/infer_tests.rs
-assertion_line: 46
-expression: "&result"
----
-Parsing Error: Unexpected token at atomic level: Some(Plus)

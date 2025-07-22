@@ -60,6 +60,7 @@ macro_rules! __internal_build_parser_logic {
         var_type = $var:ty,
         primitive_parsers = [ $( $primitive_trait:ident ),* ],
         dispatch_parsers = [ $( $dispatch_trait:ident ),* ],
+        unary_parsers = [ $( $unary_trait:ident ),* ],
         first_trait_overall = $first_trait_overall:ident,
         methods = { $( $methods:tt )* },
         all_traits = { $( $all_traits:ident, )* },
@@ -76,6 +77,7 @@ macro_rules! __internal_build_parser_logic {
                 var_type = $var,
                 primitive_parsers = [ $( $primitive_trait ),* ],
                 dispatch_parsers = [ $( $dispatch_trait ),* ],
+                unary_parsers = [ $( $unary_trait ),* ],
                 first_trait_overall = $first_trait_overall,
                 methods = {
                     $( $methods )*
@@ -120,6 +122,7 @@ macro_rules! __internal_build_parser_logic {
         var_type = $var:ty,
         primitive_parsers = [ $( $primitive_trait:ident ),* ],
         dispatch_parsers = [ $( $dispatch_trait:ident ),* ],
+        unary_parsers = [ $( $unary_trait:ident ),* ],
         first_trait_overall = $first_trait_overall:ident,
         methods = { $( $methods:tt )* },
         all_traits = { $( $all_traits:ident, )* },
@@ -133,6 +136,9 @@ macro_rules! __internal_build_parser_logic {
         impl $crate::common::parser::$first_current for $parser_struct {}
         $(
             impl $crate::common::parser::$rest_current for $parser_struct {}
+        )*
+        $(
+            impl $crate::common::parser::$unary_trait for $parser_struct {}
         )*
 
         paste::paste! {
@@ -155,13 +161,41 @@ macro_rules! __internal_build_parser_logic {
                             let rhs = if <Self as $crate::common::parser::$first_current>::is_right_assoc() {
                                 self.[<parse_ $first_current:lower _level>]()?
                             } else {
-                                self.parse_atom()?
+                                self.parse_unary()?
                             };
                             lhs = $crate::common::ast::Expr::BinOp(Box::new(lhs), op, Box::new(rhs), false);
                         } else { break; }
                     }
                     Ok(lhs)
                 }
+
+                fn parse_unary(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                    if let Some(token) = self.core().peek() {
+                        // Check for each of the unary operators you defined...
+                        $(
+                            if <Self as $crate::common::parser::$unary_trait>::check(token) {
+                                return <Self as $crate::common::parser::$unary_trait>::parse(self);
+                            }
+                        )*
+                    }
+                    // If no unary operator is found, proceed to the next level: atoms.
+                    self.parse_atom()
+                }
+            }
+        }
+
+        impl $crate::common::parser::UnaryParsing for $parser_struct {
+            fn parse_unary(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                if let Some(token) = self.core().peek() {
+                    // Check for each of the unary operators you defined...
+                    $(
+                        if <Self as $crate::common::parser::$unary_trait>::check(token) {
+                            return <Self as $crate::common::parser::$unary_trait>::parse(self);
+                        }
+                    )*
+                }
+                // If no unary operator is found, proceed to the next level: atoms.
+                self.parse_atom()
             }
         }
 
@@ -177,6 +211,7 @@ macro_rules! __internal_build_parser_logic {
                 }
                 // Call the generated method for the highest precedence level.
                 paste::paste! {
+                    //println!("{}", stringify!($first_trait_overall));
                     self.[<parse_ $first_trait_overall:lower _level>]()
                 }
             }
@@ -190,10 +225,18 @@ macro_rules! __internal_build_parser_logic {
                     )*
 
                     $(
+                        //println!("{}", stringify!($primitive_trait));
+                        //println!("{:?}", token);
                         if <Self as $crate::common::parser::$primitive_trait>::check(&token) {
                             return <Self as $crate::common::parser::$primitive_trait>::parse(self);
                         }
                     )*
+                    $(
+                        if <Self as $crate::common::parser::$unary_trait>::check(&token) {
+                        return self.parse_unary();
+                        }
+                    )*
+        
                 }
                 Err(format!("Unexpected token at atomic level: {:?}", self.core().peek()))
             }
@@ -207,6 +250,7 @@ macro_rules! build_parser {
         parser = $parser_struct:ty,
         var_type = $var:ty,
         primitive_parsers: [ $( $primitive_trait:ident ),* ],
+        unary_parsers : [ $( $unary_trait:ident ),* ],
         dispatch_parsers: [ $( $dispatch_trait:ident ),* ],
         // The signature now destructures the chain to get the first element.
         binop_chain: [ { $first_trait_in_chain:ident $(, $_rest:ident)* } $(, $rest_chain_entry:tt)* ]
@@ -226,6 +270,7 @@ macro_rules! build_parser {
             var_type = $var,
             primitive_parsers = [ $( $primitive_trait ),* ],
             dispatch_parsers = [ $( $dispatch_trait ),* ],
+            unary_parsers = [ $( $unary_trait ),* ],
             first_trait_overall = $first_trait_in_chain,
             methods = {},
             // Start with an empty list of traits
@@ -335,7 +380,7 @@ pub trait VariableParser: BaseParser {
     {
         // Peek at the next token without consuming it.
         let token = self.core().peek().ok_or_else(|| "Unexpected end of input while parsing variable".to_string())?;
-        print!("{:?}",token);
+        //print!("{:?}",token);
 
         // Use the helper trait to try to create the variable.
         if let Some(var) = Self::V::from_token(token) {
@@ -452,7 +497,7 @@ impl ParseableVariable for NamelessVar {
     }
 
     fn has_explicit_bindings() -> bool {
-        true // Named variables use `var = val`.
+        false // Named variables use `var = val`.
     }
 }
 
@@ -460,10 +505,39 @@ pub trait GroupParsing : ExpressionParser {
     fn check(token: &Token) -> bool { matches!(token, Token::LParen) }
 
     fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        
         self.core().advance();
         let expr = self.parse_expr()?;
+        //println!("{:?}", self.core().peek());
         self.core().expect(Token::RParen)?;
         Ok(mark_expr_paren(expr))
+    }
+}
+
+pub trait UnaryParsing: BaseParser {
+    fn parse_unary(&mut self) -> Result<Expr<Self::V>, String>;
+}
+
+pub trait UnaryOpParser: UnaryParsing {
+    // Checks if the current token can be the start of this unary expression
+    fn check(token: &Token) -> bool;
+
+    // Parses the expression
+    fn parse(&mut self) -> Result<Expr<Self::V>, String>;
+}
+
+// An example implementation for unary minus
+pub trait UnaryMinusParser: UnaryParsing {
+    fn check(token: &Token) -> bool {
+        matches!(token, Token::Minus)
+    }
+
+    fn parse(&mut self) -> Result<Expr<Self::V>, String> {
+        self.core().advance(); // Consume the '-' token
+        // Recursively call the unary parsing function for the operand.
+        // This correctly handles expressions like `- - 5` or `-(2+3)`.
+        let operand = self.parse_unary()?;
+        Ok(Expr::UnaryOp(Op::Sub, Box::new(operand), false))
     }
 }
 
@@ -550,15 +624,15 @@ pub trait ConsExprParsing : ExpressionParser + NilParsing {
 
 pub trait AppExprParsing : ExpressionParser + VariableParser {
     fn check(token: &Token) -> bool { 
-        !matches!(token, Token::ColonColon | Token::Lt | Token::Plus | Token::Minus | Token::Star | Token::Evalto)
+        matches!(token, Token::Int(_) | Token::Ident(_) | Token::Bool(_) | Token::Dot | Token::HashVar(_) | Token::LParen | Token::Nil)
      }
 
     fn handle(&mut self) -> Option<Op> {
         let token = self.core().peek();
-        if matches!(token, Some(Token::ColonColon | Token::Lt | Token::Plus | Token::Minus | Token::Star |Token::Evalto)) {
-            None
-        } else {
+        if matches!(token,Some(Token::Int(_) | Token::Ident(_) | Token::Bool(_) | Token::Dot | Token::HashVar(_) | Token::LParen | Token::Nil)) {
             Some(Op::App)
+        } else {
+            None
         }
     }
 
@@ -609,7 +683,7 @@ pub trait FunExprParsing : ExpressionParser + VariableParser {
 }
 
 pub trait RecFunExprParsing : ExpressionParser + FunExprParsing{
-    fn check(token: &Token) -> bool { matches!(token, Token::Rec) }
+    fn check(token: &Token) -> bool { matches!(token, Token::LetRec) }
 
     fn parse(&mut self) -> Result<Expr<Self::V>, String>     where
         Self::V: ParseableVariable {
@@ -717,7 +791,7 @@ where
                             self.core().advance();
                              match self.core().peek() {
                                 Some(Token::Fun) => return self.parse_func_val(env),
-                                Some(Token::Rec) => return self.parse_rec_func_val(env),
+                                Some(Token::LetRec) => return self.parse_rec_func_val(env),
                                 _ => {}
                             }
                         }
