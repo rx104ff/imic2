@@ -2,7 +2,7 @@ use crate::{common::{ast::{DBIndex, Expr, NamedVar, NamelessVar, Op, Value, Vari
 
 pub trait ExpressionParser : BaseParser {
     fn parse_expr(&mut self) -> Result<Expr<Self::V>, String>;
-    fn parse_atom(&mut self) -> Result<Expr<Self::V>, String>;
+    fn parse_expr_atom(&mut self) -> Result<Expr<Self::V>, String>;
 }
 
 
@@ -39,14 +39,6 @@ pub trait BoolParsing : BaseParser {
 
 pub trait NilParsing : BaseParser {
     fn check(token: &Token) -> bool { matches!(token, Token::Nil) }
-
-    fn handle(&mut self) -> Option<Token> {
-        if self.core().peek() == Some(&Token::Nil) {
-            self.core().advance();
-            return Some(Token::Nil)
-        }
-        None
-    }
     
     fn parse(&mut self) -> Result<Expr<Self::V>, String> {
         let token = self.core().peek().cloned();

@@ -10,7 +10,7 @@ pub trait ValueParserDefault: ValueParser {
     fn parse_value(&mut self) -> Result<Value<Self::V>, String>;
     fn parse_list_value(&mut self, paren: bool) -> Result<Value<Self::V>, String>;
     fn parse_list_tail(&mut self, left: Value<Self::V>, paren: bool) -> Result<Value<Self::V>, String>;
-    fn parse_single_value(&mut self) -> Result<Value<Self::V>, String>;
+    fn parse_value_atom(&mut self) -> Result<Value<Self::V>, String>;
     fn collect_tokens_until_rbracket(&mut self) -> Vec<Token>;
     fn parse_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String>;
     fn parse_rec_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String>;
@@ -26,11 +26,11 @@ where
     }
 
     fn parse_list_value(&mut self, paren: bool) -> Result<Value<Self::V>, String> {
-        let left = self.parse_single_value()?;
+        let left = self.parse_value_atom()?;
         self.parse_list_tail(left, paren)
     }
 
-    fn parse_single_value(&mut self) -> Result<Value<Self::V>, String> {
+    fn parse_value_atom(&mut self) -> Result<Value<Self::V>, String> {
         match self.core().peek().cloned() {
             Some(Token::Int(n)) => { self.core().advance(); Ok(Value::Int(n)) }
             Some(Token::Bool(b)) => { self.core().advance(); Ok(Value::Bool(b)) }

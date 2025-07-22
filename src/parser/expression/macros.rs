@@ -93,8 +93,8 @@ macro_rules! __internal_build_parser_logic {
 
                 // The method for the final level of the chain.
                 fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
-                    // It calls `parse_atom` to terminate the recursion.
-                    let mut lhs = self.parse_atom()?;
+                    // It calls `parse_expr_atom` to terminate the recursion.
+                    let mut lhs = self.parse_expr_atom()?;
                     loop {
                         let maybe_op = {
                             let mut op = None;
@@ -124,7 +124,7 @@ macro_rules! __internal_build_parser_logic {
                         )*
                     }
                     // If no unary operator is found, proceed to the next level: atoms.
-                    self.parse_atom()
+                    self.parse_expr_atom()
                 }
             }
         }
@@ -140,7 +140,7 @@ macro_rules! __internal_build_parser_logic {
                     )*
                 }
                 // If no unary operator is found, proceed to the next level: atoms.
-                self.parse_atom()
+                self.parse_expr_atom()
             }
         }
 
@@ -161,7 +161,7 @@ macro_rules! __internal_build_parser_logic {
                 }
             }
 
-            fn parse_atom(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+            fn parse_expr_atom(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
                 if let Some(token) = self.core().peek().cloned() {
                     $(
                         if <Self as crate::parser::expression::$dispatch_trait>::check(&token) {
@@ -170,8 +170,6 @@ macro_rules! __internal_build_parser_logic {
                     )*
 
                     $(
-                        //println!("{}", stringify!($primitive_trait));
-                        //println!("{:?}", token);
                         if <Self as crate::parser::expression::$primitive_trait>::check(&token) {
                             return <Self as crate::parser::expression::$primitive_trait>::parse(self);
                         }
