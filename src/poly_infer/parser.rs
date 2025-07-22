@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::build_parser;
+use crate::build_expression_parser;
 use crate::common::ast::{Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
-use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
+use crate::parser::expression::{VariableParser};
+use crate::parser::{ParserCore, TypeParser, ExpressionParser};
 
 
 /// A recursive descent parser for the TypingML4 language.
@@ -13,7 +14,7 @@ pub struct Parser {
     next_parser_var_id: usize,
 }
 
-build_parser! {
+build_expression_parser! {
     parser = Parser,
     var_type = NamedVar,
 

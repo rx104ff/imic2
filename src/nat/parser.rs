@@ -1,6 +1,6 @@
 use crate::common::ast::{ArithmeticOp, Expr, Judgment, NamedExpr, Nat, ReductionType};
-use crate::common::parser::ParserCore;
 use crate::common::tokenizer::Token;
+use crate::parser::ParserCore;
 
 pub struct Parser {
     core: ParserCore,

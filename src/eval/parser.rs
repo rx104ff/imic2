@@ -1,15 +1,16 @@
 // src/parser.rs
 
-use crate::build_parser;
+use crate::parser::expression::VariableParser;
+use crate::parser::{ParserCore, ValueParser, ExpressionParser, BaseParser};
+use crate::{build_expression_parser};
 use crate::common::ast::{Judgment, NamedExpr, NamedVar};
-use crate::common::parser::{BaseParser, ExpressionParser, ParserCore, ValueParser, VariableParser};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {
     core: ParserCore,
 }
 
-build_parser! {
+build_expression_parser! {
     parser = Parser,
     var_type = NamedVar,
 

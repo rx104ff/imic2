@@ -1,6 +1,7 @@
-use crate::build_parser;
+use crate::parser::expression::VariableParser;
+use crate::parser::{ParserCore, TypeParser, ExpressionParser};
+use crate::{build_expression_parser};
 use crate::common::ast::{Judgment, MonoTypeEnv, NamedVar, Type};
-use crate::common::parser::{ExpressionParser, VariableParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 /// A recursive descent parser for the TypingML4 language.
@@ -9,7 +10,7 @@ pub struct Parser {
 }
 
 
-build_parser! {
+build_expression_parser! {
     parser = Parser,
     var_type = NamedVar,
 
