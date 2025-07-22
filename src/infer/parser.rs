@@ -1,6 +1,6 @@
 use crate::build_parser;
 use crate::common::ast::{Judgment, MonoTypeEnv, NamedVar, Type};
-use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser, LtExprParsing, AppExprParsing};
+use crate::common::parser::{ExpressionParser, VariableParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 /// A recursive descent parser for the TypingML4 language.
@@ -97,7 +97,6 @@ impl Parser {
 
     // --- Type Environment and Type Parsing ---
     fn parse_type_env(&mut self) -> Result<MonoTypeEnv, String> {
-        type M = NamedVariableParser;
         let mut env = MonoTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {

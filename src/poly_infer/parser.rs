@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::build_parser;
 use crate::common::ast::{Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
-use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser, AppExprParsing};
+use crate::common::parser::{ExpressionParser, NamedVariableParser, VariableParser, ParserCore, TypeParser};
 use crate::common::tokenizer::Token;
 
 
@@ -119,7 +119,6 @@ impl Parser {
 
     // --- Type Environment and Type Parsing ---
     fn parse_type_env(&mut self) -> Result<PolyTypeEnv, String> {
-        type M = NamedVariableParser;
         let mut env = PolyTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {

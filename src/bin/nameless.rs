@@ -16,7 +16,7 @@ fn main() {
 
     // 2. Parse the tokens into a Judgment struct.
     let mut parser = nameless::parser::Parser::new(tokens);
-    let (judgment) = match parser.parse() {
+    let judgment = match parser.parse() {
         Ok(j) => j,
         Err(e) => {
             eprintln!("Parsing Error: {}", e);

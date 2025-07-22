@@ -1,15 +1,10 @@
 use imic2::common;
-use imic2::common::ast::NamelessValue;
-use imic2::common::tokenizer::tokenize;
 use imic2::nameless::parser::Parser;
-use imic2::nameless::eval::{derive, derive_judgement};
+use imic2::nameless::eval::{derive_judgement};
 use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the nameless evaluator.
 fn run_nameless_eval_test(input: &str) -> String {
-       
-
-    // 2. Parse the expression
     let tokens = common::tokenizer::tokenize(&input);
     print!("{:?}", tokens);
     let mut parser = Parser::new(tokens);
@@ -18,11 +13,6 @@ fn run_nameless_eval_test(input: &str) -> String {
         Err(e) => return format!("Parsing Error: {}", e),
     };
 
-    // 3. Run the derivation
-    // match derive(&env, &expr) {
-    //     Ok(derivation) => format!("{}", derivation),
-    //     Err(e) => format!("Evaluation Error: {}", e),
-    // }
     match derive_judgement(&judgment) {
         Ok(derivation) => format!("{}", derivation),
         Err(e) => format!("Evaluation Error: {}", e),
