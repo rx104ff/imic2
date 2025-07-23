@@ -1,9 +1,10 @@
 // src/parser.rs
 
-use crate::parser::expression::VariableParser;
+use crate::parser::environment::traits::EnvironmentParser;
+use crate::parser::value::ValueParserDefault;
 use crate::parser::{ParserCore, ValueParser, ExpressionParser, BaseParser};
 use crate::{build_expression_parser};
-use crate::common::ast::{Judgment, NamedExpr, NamedVar};
+use crate::common::ast::{Judgment, NamedExpr, NamedVar, Value};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {
@@ -19,11 +20,11 @@ build_expression_parser! {
         BoolParsing,
         NilParsing,
         GroupParsing,
-        VariableParser
+        VariableParsing
     ],
 
     unary_parsers: [
-        UnaryMinusParser
+        UnaryMinusParsing
     ],
 
     dispatch_parsers: [
@@ -43,10 +44,14 @@ build_expression_parser! {
     ]
 }
 
-impl ValueParser for Parser {
+impl ValueParser<NamedVar> for Parser {
     fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<NamedExpr, String>{
         let mut inner_parser = Self::new(tokens);
         inner_parser.parse_expr()
+    }
+
+    fn parse_value(&mut self) -> Result<Value<NamedVar>, String> {
+        self.parse_list_value()
     }
 }
 
@@ -59,7 +64,7 @@ impl Parser {
     /// It parses a judgment of the form `Γ ⊢ e evalto v`.
     pub fn parse(&mut self) -> Result<Judgment, String> {
         let env = if let Some(Token::Ident(_)) = self.core().peek() {
-            <Self as VariableParser>::parse_env_list(self)
+            <Self as EnvironmentParser<NamedVar>>::parse_env_list(self)
         } else {
             Ok(vec![])
         }?;

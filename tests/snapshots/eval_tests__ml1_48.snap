@@ -41,7 +41,7 @@ expression: "&result"
                             };
                         };
                     };
-                    f = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x], g = (compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x])[fun x -> x + 4], x = 4 |- (g x) evalto 8 by E-App {
+                    f = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x], g = (compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x])[fun x -> x + 4], x = 4 |- g x evalto 8 by E-App {
                         f = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x], g = (compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x])[fun x -> x + 4], x = 4 |- g evalto (compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x])[fun x -> x + 4] by E-Var2 {
                             f = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x], g = (compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x])[fun x -> x + 4] |- g evalto (compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x])[fun x -> x + 4] by E-Var1 {
                             };
@@ -53,7 +53,7 @@ expression: "&result"
                             };
                             compose = ()[fun f -> fun g -> fun x -> f (g x)], p = (compose = ()[fun f -> fun g -> fun x -> f (g x)])[fun x -> x * x], x = 4 |- 4 evalto 4 by E-Int {
                             };
-                             4 plus 4 is 8 by B-Plus {};
+                            4 plus 4 is 8 by B-Plus {};
                         };
                     };
                     compose = ()[fun f -> fun g -> fun x -> f (g x)], x = 8 |- x * x evalto 64 by E-Times {
@@ -61,7 +61,7 @@ expression: "&result"
                         };
                         compose = ()[fun f -> fun g -> fun x -> f (g x)], x = 8 |- x evalto 8 by E-Var1 {
                         };
-                         8 times 8 is 64 by B-Times {};
+                        8 times 8 is 64 by B-Times {};
                     };
                 };
             };

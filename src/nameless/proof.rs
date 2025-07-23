@@ -12,7 +12,7 @@ impl Axiom for Derivation {
             return None;
         }
 
-        if let Expr::BinOp(lhs_expr, op, rhs_expr, _) = &self.expr {
+        if let Expr::BinOp(lhs_expr, op, rhs_expr) = &self.expr {
             // Since this is an axiom for basic operations, the expressions
             // inside must be simple values. We extract them.
             let lhs_val: &NamelessValue = match &**lhs_expr {

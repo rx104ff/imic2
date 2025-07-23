@@ -83,7 +83,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             }
             Err(format!("Unbound variable: {}", var.0))
         }
-        Expr::Fun(param, body, _) => {
+        Expr::Fun(param, body) => {
             let param_ty = ctx.new_type_var();
             let mut new_env = env.clone();
             // In a `fun`, the parameter is monomorphic (not a `forall` type).
@@ -98,7 +98,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-Abs".to_string(), premises: vec![body_deriv],
             })
         }
-        Expr::App(e1, e2, _) => {
+        Expr::App(e1, e2) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
             let d2 = infer_expr(ctx, env, e2)?;
@@ -114,7 +114,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-App".to_string(), premises: vec![d1, d2],
             })
         }
-        Expr::Let(x, e1, e2, _) => {
+        Expr::Let(x, e1, e2) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
 
@@ -130,7 +130,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-Let".to_string(), premises: vec![d1, d2],
             })
         }
-        Expr::If(cond, then_branch, else_branch, _) => {
+        Expr::If(cond, then_branch, else_branch) => {
             let d_cond = infer_expr(ctx, env, cond)?;
             ctx.sub = unify(&d_cond.ty, &Type::Bool, &ctx.sub)?;
             let d_then = infer_expr(ctx, env, then_branch)?;
@@ -141,7 +141,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-If".to_string(), premises: vec![d_cond, d_then, d_else],
             })
         }
-        Expr::LetRec(f, x, e1, e2, _) => {
+        Expr::LetRec(f, x, e1, e2) => {
             let t1 = ctx.new_type_var();
             let t2 = ctx.new_type_var();
             let fun_ty = Type::Fun(Box::new(t1.clone()), Box::new(t2.clone()));
@@ -162,7 +162,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-LetRec".to_string(), premises: vec![d1, d2],
             })
         }
-        Expr::BinOp(e1, op, e2, _) => {
+        Expr::BinOp(e1, op, e2) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
             let d2 = infer_expr(ctx, env, e2)?;
@@ -209,7 +209,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 premises: vec![d1, d2]
             })
         }
-        Expr::Match(e1, e2, x, y, e3, _) => {
+        Expr::Match(e1, e2, x, y, e3) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
 

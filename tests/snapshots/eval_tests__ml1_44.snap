@@ -24,7 +24,7 @@ expression: "&result"
                 };
                 x = 3, y = 5 |- y evalto 5 by E-Var1 {
                 };
-                 3 less than 5 is true by B-Lt {};
+                3 less than 5 is true by B-Lt {};
             };
             x = 3, y = 5 |- y evalto 5 by E-Var1 {
             };

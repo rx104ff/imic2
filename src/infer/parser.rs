@@ -1,7 +1,7 @@
-use crate::parser::expression::VariableParser;
+use crate::parser::primitive::traits::VariableParsing;
 use crate::parser::{ParserCore, TypeParser, ExpressionParser};
 use crate::{build_expression_parser};
-use crate::common::ast::{Judgment, MonoTypeEnv, NamedVar, Type};
+use crate::common::ast::{Expr, Judgment, MonoTypeEnv, NamedVar, Type};
 use crate::common::tokenizer::Token;
 
 /// A recursive descent parser for the TypingML4 language.
@@ -19,11 +19,11 @@ build_expression_parser! {
         BoolParsing,
         NilParsing,
         GroupParsing,
-        VariableParser
+        VariableParsing
     ],
 
     unary_parsers: [
-        UnaryMinusParser
+        UnaryMinusParsing
     ],
 
     dispatch_parsers: [
@@ -102,7 +102,7 @@ impl Parser {
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
 
-            let var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+            let var = <Self as VariableParsing<Expr<NamedVar>>>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
             self.core.expect(Token::Colon)?;
             let ty = self.parse_type()?;
             env.push((var, ty));

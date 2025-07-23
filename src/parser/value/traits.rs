@@ -1,36 +1,39 @@
-use crate::{common::{ast::{Expr, Value}, tokenizer::Token}, parser::expression::traits::{ExpressionParser, ParseableVariable, VariableParser}};
+use crate::{common::{ast::{Expr, Value, Variable}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, expression::traits::ExpressionParser, primitive::traits::{ParseableVariable, VariableParsing}}};
 
 
-pub trait ValueParser:  ExpressionParser {
-    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr<Self::V>, String>;
+pub trait ValueParser<V>:  ExpressionParser<V>
+where V: Variable {
+    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<Expr<V>, String>;
+    fn parse_value(&mut self) -> Result<Value<V>, String>;
 }
 
-pub trait ValueParserDefault: ValueParser {
+pub trait ValueParserDefault<V>: ValueParser<V>
+where V: Variable {
     // fn parse_env_list(&mut self) -> Result<Vec<(Var, Value<E>)>, String>;
-    fn parse_value(&mut self) -> Result<Value<Self::V>, String>;
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value<Self::V>, String>;
-    fn parse_list_tail(&mut self, left: Value<Self::V>, paren: bool) -> Result<Value<Self::V>, String>;
-    fn parse_value_atom(&mut self) -> Result<Value<Self::V>, String>;
+    fn parse_value(&mut self) -> Result<Value<V>, String>;
+    fn parse_list_value(&mut self) -> Result<Value<V>, String>;
+    fn parse_list_tail(&mut self, left: Value<V>) -> Result<Value<V>, String>;
+    fn parse_value_atom(&mut self) -> Result<Value<V>, String>;
     fn collect_tokens_until_rbracket(&mut self) -> Vec<Token>;
-    fn parse_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String>;
-    fn parse_rec_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String>;
+    fn parse_func_val(&mut self, env: Vec<(V, Value<V>)>) -> Result<Value<V>, String>;
+    fn parse_rec_func_val(&mut self, env: Vec<(V, Value<V>)>) -> Result<Value<V>, String>;
 }
 
-impl<P> ValueParserDefault for P
+impl<P, V> ValueParserDefault<V> for P
 where
-    P: ValueParser + VariableParser + ?Sized,
-    P::V: ParseableVariable
+    P: ValueParser<V> + EnvironmentParser<V> + VariableParsing<Expr<V>> + ?Sized,
+    V: ParseableVariable + Variable
 {
-    fn parse_value(&mut self) -> Result<Value<Self::V>, String> {
-        self.parse_list_value(false)
+    fn parse_value(&mut self) -> Result<Value<V>, String> {
+        self.parse_list_value()
     }
 
-    fn parse_list_value(&mut self, paren: bool) -> Result<Value<Self::V>, String> {
+    fn parse_list_value(&mut self) -> Result<Value<V>, String> {
         let left = self.parse_value_atom()?;
-        self.parse_list_tail(left, paren)
+        self.parse_list_tail(left)
     }
 
-    fn parse_value_atom(&mut self) -> Result<Value<Self::V>, String> {
+    fn parse_value_atom(&mut self) -> Result<Value<V>, String> {
         match self.core().peek().cloned() {
             Some(Token::Int(n)) => { self.core().advance(); Ok(Value::Int(n)) }
             Some(Token::Bool(b)) => { self.core().advance(); Ok(Value::Bool(b)) }
@@ -38,7 +41,7 @@ where
                 self.core().advance();
                 let saved_pos = self.core().pos();
                 
-                if let Ok(env) = <Self as VariableParser>::parse_env_list(self) {
+                if let Ok(env) = <Self as EnvironmentParser<V>>::parse_env_list(self) {
                     if self.core().peek() == Some(&Token::RParen) {
                         self.core().advance();
                         if self.core().peek() == Some(&Token::LBracket) {
@@ -56,7 +59,7 @@ where
                 let inner = self.parse_value()?;
                 self.core().expect(Token::RParen)?;
                 match inner {
-                    Value::Cons(l, r, _) => Ok(Value::Cons(l, r, true)),
+                    Value::Cons(l, r) => Ok(Value::Cons(l, r)),
                     _ => Ok(inner),
                 }
             }
@@ -65,11 +68,11 @@ where
         }
     }
 
-    fn parse_list_tail(&mut self, left: Value<Self::V>, paren: bool) -> Result<Value<Self::V>, String> {
+    fn parse_list_tail(&mut self, left: Value<V>) -> Result<Value<V>, String> {
         if self.core().peek() == Some(&Token::ColonColon) {
             self.core().advance();
-            let right = self.parse_list_value(false)?;
-            Ok(Value::Cons(Box::new(left), Box::new(right), paren))
+            let right = self.parse_list_value()?;
+            Ok(Value::Cons(Box::new(left), Box::new(right)))
         } else {
             Ok(left)
         }
@@ -90,24 +93,24 @@ where
         tokens
     }
 
-    fn parse_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String> {
+    fn parse_func_val(&mut self, env: Vec<(V, Value<V>)>) -> Result<Value<V>, String> {
         self.core().expect(Token::Fun)?;
-        let param = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        let param = <Self as VariableParsing<Expr<V>>>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
         self.core().expect(Token::Arrow)?;
         let body_tokens = self.collect_tokens_until_rbracket();
         let body = self.parse_inner_expr(body_tokens)?;
-        Ok(Value::FunVal(param, Box::new(body), env, false))
+        Ok(Value::FunVal(param, Box::new(body), env))
     }
 
-    fn parse_rec_func_val(&mut self, env: Vec<(Self::V, Value<Self::V>)>) -> Result<Value<Self::V>, String> {
+    fn parse_rec_func_val(&mut self, env: Vec<(V, Value<V>)>) -> Result<Value<V>, String> {
         self.core().expect(Token::Rec)?;
-        let name = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        let name = <Self as VariableParsing<Expr<V>>>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
         self.core().expect(Token::Equals)?;
         self.core().expect(Token::Fun)?;
-        let param = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+        let param = <Self as VariableParsing<Expr<V>>>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
         self.core().expect(Token::Arrow)?;
         let body_tokens = self.collect_tokens_until_rbracket();
         let body = self.parse_inner_expr(body_tokens)?;
-        Ok(Value::RecFunVal(name, param, Box::new(body), env, false))
+        Ok(Value::RecFunVal(name, param, Box::new(body), env))
     }
 }

@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::build_expression_parser;
-use crate::common::ast::{Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
+use crate::common::ast::{Expr, Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
 use crate::common::tokenizer::Token;
-use crate::parser::expression::{VariableParser};
+use crate::parser::primitive::traits::VariableParsing;
 use crate::parser::{ParserCore, TypeParser, ExpressionParser};
 
 
@@ -23,11 +23,11 @@ build_expression_parser! {
         BoolParsing,
         NilParsing,
         GroupParsing,
-        VariableParser
+        VariableParsing
     ],
 
     unary_parsers: [
-        UnaryMinusParser
+        UnaryMinusParsing
     ],
 
     dispatch_parsers: [
@@ -123,7 +123,7 @@ impl Parser {
         let mut env = PolyTypeEnv::new();
         if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
         loop {
-            let var = <Self as VariableParser>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
+            let var = <Self as VariableParsing<Expr<NamedVar>>>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
             self.core.expect(Token::Colon)?;
             let scheme = self.parse_type_scheme()?;
             env.push((var, scheme));

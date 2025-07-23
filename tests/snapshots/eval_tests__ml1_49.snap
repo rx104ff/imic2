@@ -40,7 +40,7 @@ expression: "&result"
                     s = ()[fun f -> fun g -> fun x -> f x (g x)], x = 7 |- fun y -> x evalto (s = ()[fun f -> fun g -> fun x -> f x (g x)], x = 7)[fun y -> x] by E-Fun {
                     };
                 };
-                f = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], g = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], x = 7 |- (g x) evalto (s = ()[fun f -> fun g -> fun x -> f x (g x)], x = 7)[fun y -> x] by E-App {
+                f = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], g = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], x = 7 |- g x evalto (s = ()[fun f -> fun g -> fun x -> f x (g x)], x = 7)[fun y -> x] by E-App {
                     f = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], g = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], x = 7 |- g evalto (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x] by E-Var2 {
                         f = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x], g = (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x] |- g evalto (s = ()[fun f -> fun g -> fun x -> f x (g x)])[fun x -> fun y -> x] by E-Var1 {
                         };

@@ -28,13 +28,13 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
             rule: "E-Bool".to_string(),
             sub_derivations: vec![],
         }),
-        Expr::BinOp(e1, op, e2, is_paren) => {
+        Expr::BinOp(e1, op, e2) => {
             let d1 = derive(env, e1)?;
             let d2 = derive(env, e2)?;
 
             if *op == Op::App {
                 return match &d1.result {
-                    NamelessValue::FunVal(param, body, closure_env, _) => {
+                    NamelessValue::FunVal(param, body, closure_env) => {
                         let mut new_env = (**closure_env).to_vec();
                         new_env.push((param.clone(), d2.result.clone()));
                         let d_body = derive(&new_env, body)?;
@@ -46,7 +46,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                             sub_derivations: vec![d1, d2, d_body],
                         })
                     }
-                    NamelessValue::RecFunVal(name, param, body, closure_env, _) => {
+                    NamelessValue::RecFunVal(name, param, body, closure_env) => {
                         let mut new_env = (**closure_env).to_vec();
                         new_env.push((name.clone(), d1.result.clone()));
                         new_env.push((param.clone(), d2.result.clone()));
@@ -70,7 +70,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                     let res = NamelessValue::Int(i1 + i2);
                     let axiom = Derivation {
                         env: env.clone(),
-                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Add, Box::new(Expr::Int(*i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Add, Box::new(Expr::Int(*i2))),
                         result: res.clone(),
                         rule: "B-Plus".to_string(),
                         sub_derivations: vec![],
@@ -81,7 +81,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                     let res = NamelessValue::Int(i1 - i2);
                     let axiom = Derivation {
                         env: env.clone(),
-                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Sub, Box::new(Expr::Int(*i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Sub, Box::new(Expr::Int(*i2))),
                         result: res.clone(),
                         rule: "B-Minus".to_string(),
                         sub_derivations: vec![],
@@ -92,7 +92,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                     let res = NamelessValue::Int(i1 * i2);
                      let axiom = Derivation {
                         env: env.clone(),
-                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Mul, Box::new(Expr::Int(*i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Mul, Box::new(Expr::Int(*i2))),
                         result: res.clone(),
                         rule: "B-Times".to_string(),
                         sub_derivations: vec![],
@@ -103,7 +103,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                     let res = NamelessValue::Bool(i1 < i2);
                      let axiom = Derivation {
                         env: env.clone(),
-                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Lt, Box::new(Expr::Int(*i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(*i1)), Op::Lt, Box::new(Expr::Int(*i2))),
                         result: res.clone(),
                         rule: "B-Lt".to_string(),
                         sub_derivations: vec![],
@@ -143,7 +143,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                 Err(format!("Unbound variable index: #{}", i))
             }
         }
-        Expr::Let(_, e1, e2, _) => {
+        Expr::Let(_, e1, e2) => {
             let d1 = derive(env, e1)?;
             let mut new_env = env.clone();
             new_env.push((NamelessVar(DBIndex(env.len() + 1)), d1.result.clone())); // Add the new value to the environment
@@ -156,16 +156,16 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                 sub_derivations: vec![d1, d2],
             })
         }
-        Expr::Fun(var, body, is_paren) => {
+        Expr::Fun(var, body) => {
             Ok(Derivation {
                 env: env.clone(),
                 expr: expr.clone(),
-                result: NamelessValue::FunVal(var.clone(), body.clone(), env.clone(), *is_paren),
+                result: NamelessValue::FunVal(var.clone(), body.clone(), env.clone()),
                 rule: "E-Fun".to_string(),
                 sub_derivations: vec![],
             })
         }
-        Expr::If(cond, e_then, e_else, _) => {
+        Expr::If(cond, e_then, e_else) => {
             let d_cond = derive(env, cond)?;
             match d_cond.result {
                 NamelessValue::Bool(true) => {
@@ -191,9 +191,9 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                 _ => Err("Condition for an 'if' expression must evaluate to a boolean.".to_string()),
             }
         }
-        Expr::LetRec(f, x, body, e2, is_paren) => {
+        Expr::LetRec(f, x, body, e2) => {
             let mut new_env = env.clone();
-            let rec_val = NamelessValue::RecFunVal(f.clone(), x.clone(), body.clone(), env.clone(), *is_paren);
+            let rec_val = NamelessValue::RecFunVal(f.clone(), x.clone(), body.clone(), env.clone());
             // Push the recursive value onto the stack for the `in` part.
             new_env.push((f.clone(), rec_val.clone()));
 
@@ -206,7 +206,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                 sub_derivations: vec![d2],
             })
         }
-        Expr::App(f_expr, arg_expr, _) => {
+        Expr::App(f_expr, arg_expr) => {
             let d_f = derive(env, f_expr)?;
             let d_arg = derive(env, arg_expr)?;
             let result;
@@ -214,7 +214,7 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
             let sub_derivations;
 
             match &d_f.result {
-                NamelessValue::FunVal(binder, body, closure_env, _) => {
+                NamelessValue::FunVal(binder, body, closure_env) => {
                     rule = "E-App".to_string();
                     let mut new_env = closure_env.clone();
                     // Push argument for the body.
@@ -224,13 +224,13 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                     result = d_body.result.clone();
                     sub_derivations = vec![d_f, d_arg, d_body];
                 }
-                NamelessValue::RecFunVal(f, x, body, closure_env, is_paren_rec) => {
+                NamelessValue::RecFunVal(f, x, body, closure_env) => {
                     // Use the distinct E-AppRec rule.
                     rule = "E-AppRec".to_string();
                     let mut new_env = closure_env.clone();
 
                     // Create the recursive value to push into the environment.
-                    let rec_val = NamelessValue::RecFunVal(f.clone(), x.clone(), body.clone(), closure_env.clone(), *is_paren_rec);
+                    let rec_val = NamelessValue::RecFunVal(f.clone(), x.clone(), body.clone(), closure_env.clone());
 
                     // Push the function itself first for recursion, then the argument.
                     // In the body: #1 will be the argument, #2 will be the recursive function.

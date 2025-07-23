@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
 
 /// A trait representing the concept of a variable, either named or nameless.
-pub trait Variable: std::fmt::Display + Clone + PartialEq + Sized {
+pub trait Variable: std::fmt::Display + Clone + PartialEq + Sized + Debug {
     /// The type used for binding occurrences (e.g., `x` in `let x = ...`).
     type Binder: std::fmt::Display + Clone + PartialEq + Debug;
 }
@@ -204,14 +204,15 @@ pub enum Expr<V: Variable> {
     Nat(Nat),
     Var(V),
     Nil,
-    Let(V, Box<Expr<V>>, Box<Expr<V>>, bool),
-    LetRec(V, V, Box<Expr<V>>, Box<Expr<V>>, bool),
-    Fun(V, Box<Expr<V>>, bool),
-    App(Box<Expr<V>>, Box<Expr<V>>, bool),
-    If(Box<Expr<V>>, Box<Expr<V>>, Box<Expr<V>>, bool),
-    UnaryOp(Op, Box<Expr<V>>, bool),
-    BinOp(Box<Expr<V>>, Op, Box<Expr<V>>, bool),
-    Match(Box<Expr<V>>, Box<Expr<V>>, V, V, Box<Expr<V>>, bool),
+    Let(V, Box<Expr<V>>, Box<Expr<V>>),
+    LetRec(V, V, Box<Expr<V>>, Box<Expr<V>>),
+    Fun(V, Box<Expr<V>>),
+    App(Box<Expr<V>>, Box<Expr<V>>),
+    If(Box<Expr<V>>, Box<Expr<V>>, Box<Expr<V>>),
+    UnaryOp(Op, Box<Expr<V>>),
+    BinOp(Box<Expr<V>>, Op, Box<Expr<V>>),
+    Match(Box<Expr<V>>, Box<Expr<V>>, V, V, Box<Expr<V>>),
+    Group(Box<Expr<V>>),
     Plus(Box<Expr<V>>, Box<Expr<V>>),
     Times(Box<Expr<V>>, Box<Expr<V>>),
 }
@@ -243,9 +244,94 @@ pub enum Value<V: Variable> {
     Int(i64),
     Bool(bool),
     Nil,
-    Cons(Box<Value<V>>, Box<Value<V>>, bool),
-    FunVal(V, Box<Expr<V>>, Env<V>, bool),
-    RecFunVal(V, V, Box<Expr<V>>, Env<V>, bool),
+    Cons(Box<Value<V>>, Box<Value<V>>),
+    FunVal(V, Box<Expr<V>>, Env<V>),
+    RecFunVal(V, V, Box<Expr<V>>, Env<V>),
+    Group(Box<Value<V>>)
+}
+
+
+pub trait FromInt {
+    fn from_int(n: i64) -> Self;
+}
+
+pub trait FromBool {
+    fn from_bool(b: bool) -> Self;
+}
+
+pub trait FromNil {
+    fn from_nil() -> Self;
+}
+
+pub trait FromVar<V: Variable> {
+    fn from_var(var: V) -> Self;
+}
+
+pub trait FromUnaryOp {
+    fn from_unary_op(op: Op, operand: Self) -> Result<Self, String> where Self: Sized;
+}
+
+pub trait FromGroup {
+    fn from_group(inner: Self) -> Self where Self: Sized;
+}
+
+impl<V: Variable> FromInt for Expr<V> {
+    fn from_int(n: i64) -> Self { Expr::Int(n) }
+}
+
+impl<V: Variable> FromBool for Expr<V> {
+    fn from_bool(b: bool) -> Self { Expr::Bool(b) }
+}
+
+impl<V: Variable> FromNil for Expr<V> {
+    fn from_nil() -> Self { Expr::Nil }
+}
+
+impl<V: Variable> FromVar<V> for Expr<V> {
+    fn from_var(var: V) -> Self {
+        Expr::Var(var)
+    }
+}
+
+impl<V: Variable> FromInt for Value<V> {
+    fn from_int(n: i64) -> Self { Value::Int(n) }
+}
+
+impl<V: Variable> FromBool for Value<V> {
+    fn from_bool(b: bool) -> Self { Value::Bool(b) }
+}
+
+impl<V: Variable> FromNil for Value<V> {
+    fn from_nil() -> Self { Value::Nil }
+}
+
+impl<V: Variable> FromUnaryOp for Expr<V> {
+    fn from_unary_op(op: Op, operand: Self) -> Result<Self, String> {
+        Ok(Expr::UnaryOp(op, Box::new(operand)))
+    }
+}
+
+impl<V: Variable> FromUnaryOp for Value<V> {
+    fn from_unary_op(op: Op, operand: Self) -> Result<Self, String> {
+        if op == Op::Sub {
+            if let Value::Int(i) = operand {
+                return Ok(Value::Int(-i));
+            }
+        }
+        Err(format!("Cannot apply unary operator {:?} to value {:?}", op, operand))
+    }
+}
+
+impl<V: Variable> FromGroup for Expr<V> {
+    fn from_group(inner: Self) -> Self {
+        Expr::Group(Box::new(inner))
+    }
+}
+
+impl<V: Variable> FromGroup for Value<V> {
+    fn from_group(inner: Self) -> Self {
+        Value::Group(Box::new(inner))
+    }
 }
 
 // --- Universal Judgment AST ---
@@ -296,15 +382,18 @@ Env<E>: DisplayEnv, // Add this trait bound
             Value::Int(i) => write!(f, "{}", i),
             Value::Bool(b) => write!(f, "{}", b),
             Value::Nil => write!(f, "[]"),
-            Value::Cons(h, t, is_paren) => {
+            Value::Cons(h, t) => {
                 let s = format!("{} :: {}", h, t);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             }
-            Value::FunVal(param, body, env, _) => {
+            Value::FunVal(param, body, env) => {
                 write!(f, "{}[fun {} -> {}]", env.display_env(), param, body)
             }
-            Value::RecFunVal(func, param, body, env, _) => {
+            Value::RecFunVal(func, param, body, env) => {
                 write!(f, "{}[rec {} = fun {} -> {}]", env.display_env(), func, param, body)
+            }
+            Value::Group(v) => {
+                write!(f, "({})", v)
             }
         }
     }
@@ -329,42 +418,46 @@ impl<E> fmt::Display for Expr<E> where E: std::fmt::Display + Variable{
             Expr::Bool(b) => write!(f, "{}", b),
             Expr::Var(v) => write!(f, "{}", v),
             Expr::Nil => write!(f, "[]"),
-            Expr::Let(x, e1, e2, is_paren) => {
+            Expr::Let(x, e1, e2) => {
                 let s = format!("let {} = {} in {}", x, e1, e2);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             },
-            Expr::LetRec(func, param, body, cont, is_paren) => {
+            Expr::LetRec(func, param, body, cont) => {
                 let s = format!("let rec {} = fun {} -> {} in {}", func, param, body, cont);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             },
-            Expr::If(c, t, e, is_paren) => {
+            Expr::If(c, t, e) => {
                 let s = format!("if {} then {} else {}", c, t, e);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             },
-            Expr::UnaryOp(op, e, is_paren) => {
+            Expr::UnaryOp(op, e) => {
                 let s = format!("{}{}", op, e);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+               write!(f, "{}", s)
             }
-            Expr::BinOp(e1, op, e2, is_paren) => {
+            Expr::BinOp(e1, op, e2) => {
                 let s = if *op == Op::App {
                     format!("{} {}", e1, e2)
                 } else {
                     format!("{} {} {}", e1, op, e2)
                 };
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             }
-            Expr::Fun(p, b, is_paren) => {
+            Expr::Fun(p, b) => {
                 let s = format!("fun {} -> {}", p, b);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             },
-            Expr::App(e1, e2, is_paren) => {
+            Expr::App(e1, e2) => {
                 let s = format!("{} {}", e1, e2);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             },
-            Expr::Match(e, nil_case, x, y, cons_case, is_paren) => {
+            Expr::Match(e, nil_case, x, y, cons_case) => {
                 let s = format!("match {} with [] -> {} | {}::{} -> {}", e, nil_case, x, y, cons_case);
-                if *is_paren { write!(f, "({})", s) } else { write!(f, "{}", s) }
+                write!(f, "{}", s)
             },
+            Expr::Group(e) => {
+                let s = format!("({})", e);
+                write!(f, "{}", s)
+            }
         }
     }
 }

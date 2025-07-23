@@ -6,7 +6,7 @@ expression: "&result"
     length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] |- length (1 :: 2 :: 3 :: []) evalto 3 by E-AppRec {
         length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] |- length evalto ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] by E-Var {
         };
-        length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] |- (1 :: 2 :: 3 :: []) evalto (1 :: 2 :: 3 :: []) by E-Cons {
+        length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] |- 1 :: 2 :: 3 :: [] evalto 1 :: 2 :: 3 :: [] by E-Cons {
             length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] |- 1 evalto 1 by E-Int {
             };
             length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] |- 2 :: 3 :: [] evalto 2 :: 3 :: [] by E-Cons {
@@ -20,16 +20,16 @@ expression: "&result"
                 };
             };
         };
-        length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []) |- match l with [] -> 0 | x::y -> 1 + length y evalto 3 by E-MatchCons {
-            length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []) |- l evalto (1 :: 2 :: 3 :: []) by E-Var {
+        length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [] |- match l with [] -> 0 | x::y -> 1 + length y evalto 3 by E-MatchCons {
+            length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [] |- l evalto 1 :: 2 :: 3 :: [] by E-Var {
             };
-            length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []), x = 1, y = 2 :: 3 :: [] |- 1 + length y evalto 3 by E-Plus {
-                length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []), x = 1, y = 2 :: 3 :: [] |- 1 evalto 1 by E-Int {
+            length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [], x = 1, y = 2 :: 3 :: [] |- 1 + length y evalto 3 by E-Plus {
+                length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [], x = 1, y = 2 :: 3 :: [] |- 1 evalto 1 by E-Int {
                 };
-                length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []), x = 1, y = 2 :: 3 :: [] |- length y evalto 2 by E-AppRec {
-                    length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []), x = 1, y = 2 :: 3 :: [] |- length evalto ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] by E-Var {
+                length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [], x = 1, y = 2 :: 3 :: [] |- length y evalto 2 by E-AppRec {
+                    length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [], x = 1, y = 2 :: 3 :: [] |- length evalto ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y] by E-Var {
                     };
-                    length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = (1 :: 2 :: 3 :: []), x = 1, y = 2 :: 3 :: [] |- y evalto 2 :: 3 :: [] by E-Var {
+                    length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 1 :: 2 :: 3 :: [], x = 1, y = 2 :: 3 :: [] |- y evalto 2 :: 3 :: [] by E-Var {
                     };
                     length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 2 :: 3 :: [] |- match l with [] -> 0 | x::y -> 1 + length y evalto 2 by E-MatchCons {
                         length = ()[rec length = fun l -> match l with [] -> 0 | x::y -> 1 + length y], l = 2 :: 3 :: [] |- l evalto 2 :: 3 :: [] by E-Var {
@@ -60,15 +60,15 @@ expression: "&result"
                                                 };
                                             };
                                         };
-                                         1 plus 0 is 1 by B-Plus {};
+                                        1 plus 0 is 1 by B-Plus {};
                                     };
                                 };
                             };
-                             1 plus 1 is 2 by B-Plus {};
+                            1 plus 1 is 2 by B-Plus {};
                         };
                     };
                 };
-                 1 plus 2 is 3 by B-Plus {};
+                1 plus 2 is 3 by B-Plus {};
             };
         };
     };

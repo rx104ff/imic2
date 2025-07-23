@@ -1,4 +1,4 @@
-use crate::{build_expression_parser, common::{ast::{Judgment, NamelessExpr, NamelessVar}, tokenizer::Token}, parser::{ExpressionParser, expression::VariableParser, BaseParser, ParserCore, ValueParser}};
+use crate::{build_expression_parser, common::{ast::{Judgment, NamelessExpr, NamelessVar}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, primitive::{BoolParsing, GroupParsing, IntParsing, NilParsing, UnaryMinusParsing, VariableParsing}, value::ValueParserDefault, BaseParser, ExpressionParser, ParserCore, ValueParser}};
 
 pub struct Parser {
     core: ParserCore,
@@ -13,11 +13,11 @@ build_expression_parser! {
         BoolParsing,
         NilParsing,
         GroupParsing,
-        VariableParser
+        VariableParsing
     ],
 
     unary_parsers: [
-        UnaryMinusParser
+        UnaryMinusParsing
     ],
 
     dispatch_parsers: [
@@ -37,10 +37,15 @@ build_expression_parser! {
     ]
 }
 
-impl ValueParser for Parser {
+
+impl ValueParser<NamelessVar> for Parser {
     fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<NamelessExpr, String>{
         let mut inner_parser = Self::new(tokens);
         inner_parser.parse_expr()
+    }
+
+    fn parse_value(&mut self) -> Result<crate::common::ast::Value<NamelessVar>, String> {
+        self.parse_list_value()
     }
 }
 
@@ -52,7 +57,7 @@ impl Parser {
     /// The unique entry point for the `eval` parser.
     /// It parses a judgment of the form `Γ ⊢ e evalto v`.
     pub fn parse(&mut self) -> Result<Judgment, String> {
-        let env = <Self as VariableParser>::parse_env_list(self)?;
+        let env = <Self as EnvironmentParser<NamelessVar>>::parse_env_list(self)?;
         <Self as BaseParser>::core(self).expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;
         if let Some(Token::Evalto) = <Self as BaseParser>::core(self).peek() {

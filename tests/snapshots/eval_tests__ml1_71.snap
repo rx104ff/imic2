@@ -10,16 +10,16 @@ expression: "&result"
             f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- f (4 :: []) evalto 4 by E-App {
                 f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- f evalto ()[fun x -> match x with [] -> 0 | a::b -> a] by E-Var {
                 };
-                f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- (4 :: []) evalto (4 :: []) by E-Cons {
+                f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- 4 :: [] evalto 4 :: [] by E-Cons {
                     f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- 4 evalto 4 by E-Int {
                     };
                     f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- [] evalto [] by E-Nil {
                     };
                 };
-                x = (4 :: []) |- match x with [] -> 0 | a::b -> a evalto 4 by E-MatchCons {
-                    x = (4 :: []) |- x evalto (4 :: []) by E-Var {
+                x = 4 :: [] |- match x with [] -> 0 | a::b -> a evalto 4 by E-MatchCons {
+                    x = 4 :: [] |- x evalto 4 :: [] by E-Var {
                     };
-                    x = (4 :: []), a = 4, b = [] |- a evalto 4 by E-Var {
+                    x = 4 :: [], a = 4, b = [] |- a evalto 4 by E-Var {
                     };
                 };
             };
@@ -35,12 +35,12 @@ expression: "&result"
                     };
                 };
             };
-             4 plus 0 is 4 by B-Plus {};
+            4 plus 0 is 4 by B-Plus {};
         };
         f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- f (1 :: 2 :: 3 :: []) evalto 1 by E-App {
             f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- f evalto ()[fun x -> match x with [] -> 0 | a::b -> a] by E-Var {
             };
-            f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- (1 :: 2 :: 3 :: []) evalto (1 :: 2 :: 3 :: []) by E-Cons {
+            f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- 1 :: 2 :: 3 :: [] evalto 1 :: 2 :: 3 :: [] by E-Cons {
                 f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- 1 evalto 1 by E-Int {
                 };
                 f = ()[fun x -> match x with [] -> 0 | a::b -> a] |- 2 :: 3 :: [] evalto 2 :: 3 :: [] by E-Cons {
@@ -54,13 +54,13 @@ expression: "&result"
                     };
                 };
             };
-            x = (1 :: 2 :: 3 :: []) |- match x with [] -> 0 | a::b -> a evalto 1 by E-MatchCons {
-                x = (1 :: 2 :: 3 :: []) |- x evalto (1 :: 2 :: 3 :: []) by E-Var {
+            x = 1 :: 2 :: 3 :: [] |- match x with [] -> 0 | a::b -> a evalto 1 by E-MatchCons {
+                x = 1 :: 2 :: 3 :: [] |- x evalto 1 :: 2 :: 3 :: [] by E-Var {
                 };
-                x = (1 :: 2 :: 3 :: []), a = 1, b = 2 :: 3 :: [] |- a evalto 1 by E-Var {
+                x = 1 :: 2 :: 3 :: [], a = 1, b = 2 :: 3 :: [] |- a evalto 1 by E-Var {
                 };
             };
         };
-         4 plus 1 is 5 by B-Plus {};
+        4 plus 1 is 5 by B-Plus {};
     };
 };

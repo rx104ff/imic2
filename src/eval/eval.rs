@@ -46,7 +46,7 @@ impl Axiom for Derivation {
             return None;
         }
 
-        if let Expr::BinOp(lhs_expr, op, rhs_expr, _) = &self.expr {
+        if let Expr::BinOp(lhs_expr, op, rhs_expr) = &self.expr {
             let lhs_val:Value<NamedVar> = match &**lhs_expr {
                 Expr::Int(n) => Value::Int(*n),
                 _ => return None,
@@ -66,7 +66,7 @@ impl Axiom for Derivation {
             };
 
             return Some(format!(
-                " {} {} {} is {} by {} {{}};",
+                "{} {} {} is {} by {} {{}};",
                 lhs_val,
                 op_word,
                 rhs_val,
@@ -161,6 +161,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 }
                 Ok(derive_var_recursive(env, expr, x, version))
             }
+            
             LanguageVersion::ML4 => {
                 for (v, val) in env.iter().rev() {
                     if v == x {
@@ -177,30 +178,25 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 panic!("Unbound variable: {}", x.0)
             }
         },
-        Expr::UnaryOp(op, e, _) => {
-            // We only handle unary minus for now.
+        Expr::Group(e) => {
+            // 1. Recursively derive the inner expression.
+            derive(env, e, version)
+
+        },
+        Expr::UnaryOp(op, e) => {
+            println!("{}{}", op, e);
             if *op == Op::Sub {
-                // Check if the sub-expression is a literal integer.
                 if let Expr::Int(i) = **e {
-                    // If it is, we want the output to look *exactly* like it was just
-                    // an E-Int rule on a negative number. This matches your desired output.
                     return Ok(Derivation {
                         env: env.clone(),
-                        // The expression being derived is the UnaryOp expression, e.g., `-23`.
                         expr: expr.clone(),
-                        // The result is the corresponding negated Value.
                         result: Value::Int(-i),
-                        // We use the "E-Int" rule to mimic the derivation of a literal negative integer.
                         rule: "E-Int".to_string(),
-                        // As with E-Int, there are no sub-derivations for this base case.
                         sub_derivations: vec![],
                         version,
                     });
                 }
             }
-
-            // This part handles more complex cases like `-(x + y)`. Since we don't
-            // want a visible "E-Neg" rule, we must create a derivation step with an empty rule.
             let d = derive(env, e, version)?;
             match d.result {
                 Value::Int(i) => {
@@ -208,7 +204,6 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                         env: env.clone(),
                         expr: expr.clone(),
                         result: Value::Int(-i),
-                        // The rule is an empty string for more complex expressions, so it's not visible.
                         rule: "".to_string(),
                         sub_derivations: vec![d],
                         version,
@@ -217,14 +212,14 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 _ => Err(format!("Cannot apply unary minus to non-integer value: {:?}", d.result)),
             }
         }
-        Expr::BinOp(e1, op, e2, is_paren) => {
+        Expr::BinOp(e1, op, e2) => {
             //println!("{}{}{}", e1, op, e2);
             let d1 = derive(env, e1, version)?;
             let d2 = derive(env, e2, version)?;
 
             if *op == Op::App {
                 return match &d1.result {
-                    Value::FunVal(param, body, closure_env, _) => {
+                    Value::FunVal(param, body, closure_env) => {
                         let mut new_env = (**closure_env).to_vec();
                         new_env.push((param.clone(), d2.result.clone()));
                         let d_body = derive(&new_env, body, version)?;
@@ -237,7 +232,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                             version,
                         })
                     }
-                    Value::RecFunVal(name, param, body, closure_env, _) => {
+                    Value::RecFunVal(name, param, body, closure_env) => {
                         let mut new_env = (**closure_env).to_vec();
                         new_env.push((name.clone(), d1.result.clone()));
                         new_env.push((param.clone(), d2.result.clone()));
@@ -264,7 +259,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     "E-Plus",
                     Some(Derivation {
                         env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2))),
                         result: Value::Int(i1 + i2),
                         rule: "B-Plus".to_string(),
                         sub_derivations: vec![],
@@ -276,7 +271,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     "E-Minus",
                     Some(Derivation {
                         env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2))),
                         result: Value::Int(i1 - i2),
                         rule: "B-Minus".to_string(),
                         sub_derivations: vec![],
@@ -288,7 +283,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     "E-Times",
                     Some(Derivation {
                         env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2))),
                         result: Value::Int(i1 * i2),
                         rule: "B-Times".to_string(),
                         sub_derivations: vec![],
@@ -300,7 +295,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     "E-Lt",
                     Some(Derivation {
                         env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Lt, Box::new(Expr::Int(i2)), *is_paren),
+                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Lt, Box::new(Expr::Int(i2))),
                         result: Value::Bool(i1 < i2),
                         rule: "B-Lt".to_string(),
                         sub_derivations: vec![],
@@ -308,7 +303,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     }),
                 ),
                 (v_head, v_tail, Op::Cons) => (
-                    Value::Cons(Box::new(v_head.clone()), Box::new(v_tail.clone()), *is_paren),
+                    Value::Cons(Box::new(v_head.clone()), Box::new(v_tail.clone())),
                     "E-Cons",
                     None,
                 ),
@@ -329,7 +324,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 version,
             })
         }
-        Expr::If(cond, e_then, e_else, _) => {
+        Expr::If(cond, e_then, e_else) => {
             let d_cond = derive(env, cond, version)?;
             match d_cond.result {
                 Value::Bool(true) => {
@@ -357,7 +352,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 _ => panic!("Condition must evaluate to a boolean"),
             }
         }
-        Expr::Let(x, e1, e2, _) => {
+        Expr::Let(x, e1, e2) => {
             let d1 = derive(env, e1, version)?;
             let mut new_env = env.clone();
             new_env.push((x.clone(), d1.result.clone()));
@@ -372,23 +367,23 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 version,
             })
         }
-        Expr::Fun(param, body, is_paren) => {
+        Expr::Fun(param, body) => {
             Ok(Derivation {
                 env: env.clone(),
                 expr: expr.clone(),
-                result: Value::FunVal(param.clone(), body.clone(), env.clone(), *is_paren),
+                result: Value::FunVal(param.clone(), body.clone(), env.clone(),),
                 rule: "E-Fun".to_string(),
                 sub_derivations: vec![],
                 version,
             })
         }
-        Expr::App(f, arg, is_paren) => {
+        Expr::App(f, arg) => {
             let df = derive(env, f, version)?;
             let darg = derive(env, arg, version)?;
             let result;
             let sub_derivations;
             match &df.result {
-                Value::FunVal(param, body, closure_env, _) => {
+                Value::FunVal(param, body, closure_env) => {
                     let mut new_env = (**closure_env).to_vec();
                     new_env.push((param.clone(), darg.result.clone()));
                     // let rc_env = Rc::new(new_env);
@@ -397,16 +392,16 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     sub_derivations = vec![df, darg, d_body];
                     Ok(Derivation {
                         env: env.clone(),
-                        expr: Expr::App(f.clone(), arg.clone(), *is_paren),
+                        expr: Expr::App(f.clone(), arg.clone()),
                         result,
                         rule: "E-App".to_string(),
                         sub_derivations,
                         version,
                     })
                 }
-                Value::RecFunVal(name, param, body, closure_env,is_paren_2) => {
+                Value::RecFunVal(name, param, body, closure_env) => {
                     let mut new_env = (**closure_env).to_vec();
-                    new_env.push((name.clone(), Value::RecFunVal(name.clone(), param.clone(), body.clone(), closure_env.clone(), *is_paren_2)));
+                    new_env.push((name.clone(), Value::RecFunVal(name.clone(), param.clone(), body.clone(), closure_env.clone())));
                     new_env.push((param.clone(), darg.result.clone()));
                     // let rc_env = Rc::new(new_env);
                     let d_body = derive(&new_env, &body, version)?;
@@ -414,7 +409,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                     sub_derivations = vec![df, darg, d_body];
                     Ok(Derivation {
                         env: env.clone(),
-                        expr: Expr::App(f.clone(), arg.clone(), *is_paren),
+                        expr: Expr::App(f.clone(), arg.clone()),
                         result,
                         rule: "E-AppRec".to_string(),
                         sub_derivations,
@@ -424,9 +419,9 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                 _ => panic!("Tried to apply non-function"),
             }
         }
-        Expr::LetRec(f, x, body, e2,is_paren) => {
+        Expr::LetRec(f, x, body, e2) => {
             let mut new_env = env.clone();
-            let rec_val = Value::RecFunVal(f.clone(), x.clone(), body.clone(), new_env.clone(), *is_paren);
+            let rec_val = Value::RecFunVal(f.clone(), x.clone(), body.clone(), new_env.clone());
             new_env.push((f.clone(), rec_val.clone()));
             // let rc_env = Rc::new(new_env);
             let d2 = derive(&new_env, e2, version)?;
@@ -447,7 +442,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
             sub_derivations: vec![],
             version,
         }),
-        Expr::Match(e, e_nil, x, y, e_cons, _) => {
+        Expr::Match(e, e_nil, x, y, e_cons) => {
             let d_expr = derive(env, e, version)?;
             match d_expr.result.clone() {
                 Value::Nil => {
@@ -461,7 +456,7 @@ pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Res
                         version,
                     })
                 }
-                Value::Cons(v1, v2, _) => {
+                Value::Cons(v1, v2) => {
                     let mut new_env = env.clone();
                     new_env.push((x.clone(), *v1));
                     new_env.push((y.clone(), *v2));

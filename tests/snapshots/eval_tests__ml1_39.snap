@@ -9,14 +9,14 @@ expression: "&result"
             };
             |- 2 evalto 2 by E-Int {
             };
-             3 minus 2 is 1 by B-Minus {};
+            3 minus 2 is 1 by B-Minus {};
         };
         y = 1 |- y * y evalto 1 by E-Times {
             y = 1 |- y evalto 1 by E-Var1 {
             };
             y = 1 |- y evalto 1 by E-Var1 {
             };
-             1 times 1 is 1 by B-Times {};
+            1 times 1 is 1 by B-Times {};
         };
     };
     x = 1 |- let y = 4 in x + y evalto 5 by E-Let {
@@ -29,7 +29,7 @@ expression: "&result"
             };
             x = 1, y = 4 |- y evalto 4 by E-Var1 {
             };
-             1 plus 4 is 5 by B-Plus {};
+            1 plus 4 is 5 by B-Plus {};
         };
     };
 };

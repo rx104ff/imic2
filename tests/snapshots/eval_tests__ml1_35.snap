@@ -12,6 +12,6 @@ x = true, y = 4 |- if x then y + 1 else y - 1 evalto 5 by E-IfT {
         };
         x = true, y = 4 |- 1 evalto 1 by E-Int {
         };
-         4 plus 1 is 5 by B-Plus {};
+        4 plus 1 is 5 by B-Plus {};
     };
 };

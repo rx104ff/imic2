@@ -46,7 +46,7 @@ pub fn check_judgment(judgment: &Judgment) -> Result<Derivation, String> {
 /// The core recursive function of the type system.
 /// It verifies that expression `e` has `expected_ty` in the current context.
 fn check_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr, expected_ty: &Type) -> Result<Derivation, String> {
-    if let Expr::Fun(param, body, _) = e {
+    if let Expr::Fun(param, body) = e {
         if let Type::Fun(ty1, ty2) = expected_ty {
             let mut new_env = env.clone();
             new_env.push((param.clone(), *ty1.clone()));
@@ -118,7 +118,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             })
         }
         Expr::Var(var) => {
-            for (v, ty) in env.iter().rev() { // CORRECTED: Iterate in reverse for correct scoping
+            for (v, ty) in env.iter().rev() {
                 if v == var {
                     return Ok(Derivation {
                         env: env.clone(), expr: e.clone(), ty: ty.clone(),
@@ -128,7 +128,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             }
             Err(format!("Unbound variable: {}", var.0))
         }
-        Expr::Fun(param, body, _) => {
+        Expr::Fun(param, body) => {
             let param_ty = ctx.new_type_var();
             let mut new_env = env.clone();
             new_env.push((param.clone(), param_ty.clone()));
@@ -142,7 +142,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-Fun".to_string(), premises: vec![body_deriv],
             })
         }
-        Expr::App(e1, e2, _) => {
+        Expr::App(e1, e2) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
 
@@ -161,7 +161,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-App".to_string(), premises: vec![d1, d2],
             })
         }
-        Expr::Let(x, e1, e2, _) => {
+        Expr::Let(x, e1, e2) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
 
@@ -177,7 +177,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-Let".to_string(), premises: vec![d1, d2],
             })
         }
-        Expr::BinOp(e1, op, e2, _) => {
+        Expr::BinOp(e1, op, e2) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
 
@@ -226,7 +226,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 premises: vec![d1, d2]
             })
         }
-        Expr::If(cond, then_branch, else_branch, _) => {
+        Expr::If(cond, then_branch, else_branch) => {
             let d_cond = infer_expr(ctx, env, cond)?;
             let t_cond = apply_sub(&d_cond.ty, &ctx.sub);
             ctx.sub = unify(&t_cond, &Type::Bool, &ctx.sub)?;
@@ -245,7 +245,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-If".to_string(), premises: vec![d_cond, d_then, d_else],
             })
         }
-        Expr::LetRec(f, x, e1, e2, _) => {
+        Expr::LetRec(f, x, e1, e2) => {
             let t1 = ctx.new_type_var();
             let t2 = ctx.new_type_var();
             let fun_ty = Type::Fun(Box::new(t1.clone()), Box::new(t2.clone()));
@@ -269,7 +269,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
                 rule: "T-LetRec".to_string(), premises: vec![d1, d2],
             })
         }
-        Expr::Match(e1, e2, x, y, e3, _) => {
+        Expr::Match(e1, e2, x, y, e3) => {
             let d1 = infer_expr(ctx, env, e1)?;
             let t1 = apply_sub(&d1.ty, &ctx.sub);
 
