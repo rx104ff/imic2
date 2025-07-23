@@ -33,7 +33,7 @@ expression: "&result"
         map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map (fun x -> x) : ('j list -> 'j list) by T-App {
             map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- map : (('j -> 'j) -> ('j list -> 'j list)) by T-Var {
             };
-            map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- (fun x -> x) : ('j -> 'j) by T-Abs {
+            map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)) |- fun x -> x : ('j -> 'j) by T-Abs {
                 map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), x: 'j |- x : 'j by T-Var {
                 };
             };
@@ -42,7 +42,7 @@ expression: "&result"
             map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list) |- f (3 :: []) : int list by T-App {
                 map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list) |- f : (int list -> int list) by T-Var {
                 };
-                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list) |- (3 :: []) : int list by T-Cons {
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list) |- 3 :: [] : int list by T-Cons {
                     map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list) |- 3 : int by T-Int {
                     };
                     map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list) |- [] : int list by T-Nil {
@@ -52,7 +52,7 @@ expression: "&result"
             map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list), a: int list |- f (true :: []) : bool list by T-App {
                 map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list), a: int list |- f : (bool list -> bool list) by T-Var {
                 };
-                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list), a: int list |- (true :: []) : bool list by T-Cons {
+                map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list), a: int list |- true :: [] : bool list by T-Cons {
                     map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list), a: int list |- true : bool by T-Bool {
                     };
                     map: 'd 'e. (('d -> 'e) -> ('d list -> 'e list)), f: 'j. ('j list -> 'j list), a: int list |- [] : bool list by T-Nil {

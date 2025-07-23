@@ -23,7 +23,7 @@ expression: "&result"
         length: 'c. ('c list -> int) |- length (3 :: 2 :: []) : int by T-App {
             length: 'c. ('c list -> int) |- length : (int list -> int) by T-Var {
             };
-            length: 'c. ('c list -> int) |- (3 :: 2 :: []) : int list by T-Cons {
+            length: 'c. ('c list -> int) |- 3 :: 2 :: [] : int list by T-Cons {
                 length: 'c. ('c list -> int) |- 3 : int by T-Int {
                 };
                 length: 'c. ('c list -> int) |- 2 :: [] : int list by T-Cons {
@@ -37,8 +37,8 @@ expression: "&result"
         length: 'c. ('c list -> int) |- length ((1 :: []) :: []) : int by T-App {
             length: 'c. ('c list -> int) |- length : (int list list -> int) by T-Var {
             };
-            length: 'c. ('c list -> int) |- ((1 :: []) :: []) : int list list by T-Cons {
-                length: 'c. ('c list -> int) |- (1 :: []) : int list by T-Cons {
+            length: 'c. ('c list -> int) |- (1 :: []) :: [] : int list list by T-Cons {
+                length: 'c. ('c list -> int) |- 1 :: [] : int list by T-Cons {
                     length: 'c. ('c list -> int) |- 1 : int by T-Int {
                     };
                     length: 'c. ('c list -> int) |- [] : int list by T-Nil {

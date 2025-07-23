@@ -1,4 +1,4 @@
-use crate::{build_expression_parser, common::{ast::{Judgment, NamelessExpr, NamelessVar}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, value::ValueParserDefault, BaseParser, ExpressionParser, ParserCore, ValueParser}};
+use crate::{build_expression_parser, build_value_parser, common::{ast::{Judgment, NamelessVar}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, BaseParser, ExpressionParser, ParserCore, ValueParser}};
 
 pub struct Parser {
     core: ParserCore,
@@ -37,16 +37,25 @@ build_expression_parser! {
     ]
 }
 
+build_value_parser! {
+    parser = Parser,
+    var_type = NamelessVar,
 
-impl ValueParser<NamelessVar> for Parser {
-    fn parse_inner_expr(&self, tokens: Vec<Token>) -> Result<NamelessExpr, String>{
-        let mut inner_parser = Self::new(tokens);
-        inner_parser.parse_expr()
-    }
+    primitive_parsers: [
+        IntParsing,
+        BoolParsing,
+        NilParsing,
+        GroupParsing
+    ],
 
-    fn parse_value(&mut self) -> Result<crate::common::ast::Value<NamelessVar>, String> {
-        self.parse_list_value()
-    }
+    dispatch_parsers: [
+        FunValParsing,
+        RecFunValParsing
+    ],
+
+    binop_chain: [
+        { ConsValueParsing }
+    ]
 }
 
 impl Parser {

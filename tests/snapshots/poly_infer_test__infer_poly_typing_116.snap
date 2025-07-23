@@ -13,7 +13,7 @@ expression: "&result"
                         f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- x : 'd by T-Var {
                         };
                     };
-                    f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- (g x) : 'f by T-App {
+                    f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- g x : 'f by T-App {
                         f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- g : ('d -> 'f) by T-Var {
                         };
                         f: ('d -> ('f -> 'g)), g: ('d -> 'f), x: 'd |- x : 'd by T-Var {
