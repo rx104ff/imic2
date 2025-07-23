@@ -1,4 +1,4 @@
-use std::fmt::{self, Debug};
+use std::fmt::{self, write, Debug};
 use std::collections::{HashSet};
 use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
@@ -143,6 +143,7 @@ pub enum Type {
     Fun(Box<Type>, Box<Type>),
     List(Box<Type>),
     Var(TypeVar),
+    Group(Box<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -323,6 +324,12 @@ impl<V: Variable> FromGroup for Value<V> {
     }
 }
 
+impl FromGroup for Type {
+    fn from_group(inner: Self) -> Self {
+        Type::Group(Box::new(inner))
+    }
+}
+
 // --- Universal Judgment AST ---
 
 // The Judgment enum can now represent a judgment from ANY of your language systems.
@@ -465,6 +472,7 @@ impl fmt::Display for Type {
             Type::Fun(t1, t2) => write!(f, "({} -> {})", t1, t2),
             Type::List(t) => write!(f, "{} list", t),
             Type::Var(tv) => write!(f, "{}", tv),
+            Type::Group(t) => write!(f, "{}", t),
         }
     }
 }
