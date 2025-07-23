@@ -3,24 +3,19 @@ use std::collections::{HashSet};
 use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
 
-/// A trait representing the concept of a variable, either named or nameless.
 pub trait Variable: std::fmt::Display + Clone + PartialEq + Sized + Debug {
-    /// The type used for binding occurrences (e.g., `x` in `let x = ...`).
     type Binder: std::fmt::Display + Clone + PartialEq + Debug;
 }
 
-/// A named variable, represented as a string.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NamedVar(pub String);
 impl Variable for NamedVar {
     type Binder = NamedVar;
 }
 
-/// A nameless variable, represented by a de Bruijn index.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NamelessVar(pub DBIndex);
 impl Variable for NamelessVar {
-    // Binders in nameless expressions can be a named variable (for let-rec) or a dot.
     type Binder = NamelessVar;
 }
 
@@ -47,12 +42,10 @@ impl fmt::Display for DBIndex {
 }
 
 // --- Universal Primitives ---
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op { Add, Sub, Mul, Lt, Cons, App }
 
 // --- Types for Nat Language ---
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Nat {
     Z,
@@ -218,8 +211,6 @@ pub enum Expr<V: Variable> {
 }
 
 impl<V: Variable> Expr<V> {
-    /// Consumes the expression and returns the inner variable `V` if it's an `Expr::Var`,
-    /// otherwise returns `None`.
     pub fn into_variable(self) -> Option<V> {
         if let Expr::Var(v) = self {
             Some(v)
@@ -228,8 +219,6 @@ impl<V: Variable> Expr<V> {
         }
     }
 
-    /// Returns a reference to the inner variable `V` if it's an `Expr::Var`,
-    /// otherwise returns `None`.
     pub fn as_variable(&self) -> Option<&V> {
         if let Expr::Var(v) = self {
             Some(v)

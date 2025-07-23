@@ -3,7 +3,7 @@
 use crate::parser::environment::traits::EnvironmentParser;
 use crate::parser::{ParserCore, ValueParser, ExpressionParser, BaseParser};
 use crate::{build_expression_parser, build_value_parser};
-use crate::common::ast::{Judgment, NamedExpr, NamedVar, Value};
+use crate::common::ast::{Judgment, NamedVar};
 use crate::common::tokenizer::Token;
 
 pub struct Parser {

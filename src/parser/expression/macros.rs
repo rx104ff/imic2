@@ -1,4 +1,48 @@
 #[macro_export]
+macro_rules! build_expression_parser {
+    (
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+        primitive_parsers: [ $( $primitive_trait:ident ),* ],
+        unary_parsers : [ $( $unary_trait:ident ),* ],
+        dispatch_parsers: [ $( $dispatch_trait:ident ),* ],
+        binop_chain: [ { $first_trait_in_chain:ident $(, $_rest:ident)* } $(, $rest_chain_entry:tt)* ]
+    ) => {
+
+        // Phase 1: Implement the primitive and dispatch traits.
+        $(
+            impl crate::parser::primitive::$primitive_trait<$crate::common::ast::Expr<$var>> for $parser_struct {}
+        )*
+        $(
+            impl crate::parser::expression::$dispatch_trait<$var> for $parser_struct {}
+        )*
+
+        // Phase 2: Kick off the internal recursive macro.
+        $crate::__internal_build_parser_logic! {
+            parser = $parser_struct,
+            var_type = $var,
+            primitive_parsers = [ $( $primitive_trait ),* ],
+            dispatch_parsers = [ $( $dispatch_trait ),* ],
+            unary_parsers = [ $( $unary_trait ),* ],
+            first_trait_overall = $first_trait_in_chain,
+            methods = {},
+            // Start with an empty list of traits
+            all_traits = {},
+            // Pass the entire reconstructed chain to the internal helper.
+            chain = [ { $first_trait_in_chain $(, $_rest)* } $(, $rest_chain_entry)* ]
+        }
+
+        // Phase 3: Implement the BaseParser trait.
+        impl crate::parser::core::BaseParser for $parser_struct {
+            type V = $var;
+            fn core(&mut self) -> &mut crate::parser::core::ParserCore {
+                &mut self.core
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! __internal_build_parser_logic {
     (
         parser = $parser_struct:ty,
@@ -164,50 +208,6 @@ macro_rules! __internal_build_parser_logic {
         
                 }
                 Err(format!("Unexpected token at atomic level: {:?}", self.core().peek()))
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! build_expression_parser {
-    (
-        parser = $parser_struct:ty,
-        var_type = $var:ty,
-        primitive_parsers: [ $( $primitive_trait:ident ),* ],
-        unary_parsers : [ $( $unary_trait:ident ),* ],
-        dispatch_parsers: [ $( $dispatch_trait:ident ),* ],
-        binop_chain: [ { $first_trait_in_chain:ident $(, $_rest:ident)* } $(, $rest_chain_entry:tt)* ]
-    ) => {
-
-        // Phase 1: Implement the primitive and dispatch traits.
-        $(
-            impl crate::parser::primitive::$primitive_trait<$crate::common::ast::Expr<$var>> for $parser_struct {}
-        )*
-        $(
-            impl crate::parser::expression::$dispatch_trait<$var> for $parser_struct {}
-        )*
-
-        // Phase 2: Kick off the internal recursive macro.
-        $crate::__internal_build_parser_logic! {
-            parser = $parser_struct,
-            var_type = $var,
-            primitive_parsers = [ $( $primitive_trait ),* ],
-            dispatch_parsers = [ $( $dispatch_trait ),* ],
-            unary_parsers = [ $( $unary_trait ),* ],
-            first_trait_overall = $first_trait_in_chain,
-            methods = {},
-            // Start with an empty list of traits
-            all_traits = {},
-            // Pass the entire reconstructed chain to the internal helper.
-            chain = [ { $first_trait_in_chain $(, $_rest)* } $(, $rest_chain_entry)* ]
-        }
-
-        // Phase 3: Implement the BaseParser trait.
-        impl crate::parser::core::BaseParser for $parser_struct {
-            type V = $var;
-            fn core(&mut self) -> &mut crate::parser::core::ParserCore {
-                &mut self.core
             }
         }
     };
