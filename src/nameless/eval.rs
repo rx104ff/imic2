@@ -143,6 +143,9 @@ pub fn derive(env: &NamelessEnv, expr: &NamelessExpr) -> Result<Derivation, Stri
                 Err(format!("Unbound variable index: #{}", i))
             }
         }
+        Expr::Group(e) => {
+            derive(env, e)
+        }
         Expr::Let(_, e1, e2) => {
             let d1 = derive(env, e1)?;
             let mut new_env = env.clone();
