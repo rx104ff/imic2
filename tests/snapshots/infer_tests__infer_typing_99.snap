@@ -18,7 +18,7 @@ expression: "&result"
             fact: (int -> int), n: int |- fact (n - 1) : int by T-App {
                 fact: (int -> int), n: int |- fact : (int -> int) by T-Var {
                 };
-                fact: (int -> int), n: int |- (n - 1) : int by T-Minus {
+                fact: (int -> int), n: int |- n - 1 : int by T-Minus {
                     fact: (int -> int), n: int |- n : int by T-Var {
                     };
                     fact: (int -> int), n: int |- 1 : int by T-Int {

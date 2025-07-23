@@ -128,6 +128,9 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             }
             Err(format!("Unbound variable: {}", var.0))
         }
+        Expr::Group(e) => {
+            infer_expr(ctx, env, e)
+        }
         Expr::Fun(param, body) => {
             let param_ty = ctx.new_type_var();
             let mut new_env = env.clone();

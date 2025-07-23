@@ -9,7 +9,7 @@ expression: "&result"
                 f: (int -> int), g: (int -> int), x: int |- f (g x) : int by T-App {
                     f: (int -> int), g: (int -> int), x: int |- f : (int -> int) by T-Var {
                     };
-                    f: (int -> int), g: (int -> int), x: int |- (g x) : int by T-App {
+                    f: (int -> int), g: (int -> int), x: int |- g x : int by T-App {
                         f: (int -> int), g: (int -> int), x: int |- g : (int -> int) by T-Var {
                         };
                         f: (int -> int), g: (int -> int), x: int |- x : int by T-Var {

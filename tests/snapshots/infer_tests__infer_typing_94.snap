@@ -16,7 +16,7 @@ expression: "&result"
             k: (bool -> ((int -> int) -> bool)) |- true : bool by T-Bool {
             };
         };
-        k: (bool -> ((int -> int) -> bool)) |- (fun x -> x + 1) : (int -> int) by T-Fun {
+        k: (bool -> ((int -> int) -> bool)) |- fun x -> x + 1 : (int -> int) by T-Fun {
             k: (bool -> ((int -> int) -> bool)), x: int |- x + 1 : int by T-Plus {
                 k: (bool -> ((int -> int) -> bool)), x: int |- x : int by T-Var {
                 };

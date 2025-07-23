@@ -13,7 +13,7 @@ expression: "&result"
                         f: (int -> ((int -> int) -> int)), g: (int -> (int -> int)), x: int |- x : int by T-Var {
                         };
                     };
-                    f: (int -> ((int -> int) -> int)), g: (int -> (int -> int)), x: int |- (g x) : (int -> int) by T-App {
+                    f: (int -> ((int -> int) -> int)), g: (int -> (int -> int)), x: int |- g x : (int -> int) by T-App {
                         f: (int -> ((int -> int) -> int)), g: (int -> (int -> int)), x: int |- g : (int -> (int -> int)) by T-Var {
                         };
                         f: (int -> ((int -> int) -> int)), g: (int -> (int -> int)), x: int |- x : int by T-Var {

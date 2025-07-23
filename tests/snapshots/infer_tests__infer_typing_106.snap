@@ -33,7 +33,7 @@ expression: "&result"
         map: ((int -> bool) -> (int list -> bool list)) |- map (fun x -> x < 3) : (int list -> bool list) by T-App {
             map: ((int -> bool) -> (int list -> bool list)) |- map : ((int -> bool) -> (int list -> bool list)) by T-Var {
             };
-            map: ((int -> bool) -> (int list -> bool list)) |- (fun x -> x < 3) : (int -> bool) by T-Fun {
+            map: ((int -> bool) -> (int list -> bool list)) |- fun x -> x < 3 : (int -> bool) by T-Fun {
                 map: ((int -> bool) -> (int list -> bool list)), x: int |- x < 3 : bool by T-Lt {
                     map: ((int -> bool) -> (int list -> bool list)), x: int |- x : int by T-Var {
                     };
@@ -42,7 +42,7 @@ expression: "&result"
                 };
             };
         };
-        map: ((int -> bool) -> (int list -> bool list)) |- (4 :: 5 :: 1 :: []) : int list by T-Cons {
+        map: ((int -> bool) -> (int list -> bool list)) |- 4 :: 5 :: 1 :: [] : int list by T-Cons {
             map: ((int -> bool) -> (int list -> bool list)) |- 4 : int by T-Int {
             };
             map: ((int -> bool) -> (int list -> bool list)) |- 5 :: 1 :: [] : int list by T-Cons {
