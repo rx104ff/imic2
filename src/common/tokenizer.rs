@@ -16,6 +16,11 @@ pub enum Token {
     HashVar(u64),
     TypeVar(String), // 'a, 'b, etc.
 
+    // Type
+    TypeInt,
+    TypeBool,
+    TypeList,
+
     // Grouping and Lists
     LParen, RParen, LBracket, RBracket, Nil,
     
@@ -109,6 +114,11 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "true" | "True" => tokens.push(Token::Bool(true)),
                 "false" | "False" => tokens.push(Token::Bool(false)),
                 "evalto" => tokens.push(Token::Evalto),
+
+                // Inferrence Keywords
+                "int" => tokens.push(Token::TypeInt),
+                "list" => tokens.push(Token::TypeList),
+                "bool" => tokens.push(Token::TypeBool),
                 _ => tokens.push(Token::Ident(keyword.to_string())),
             }
         // --- Numbers ---

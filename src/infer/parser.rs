@@ -51,13 +51,13 @@ impl TypeParser for Parser {
 
     fn parse_single_type(&mut self) -> Result<Type, String> {
         let ty = match self.core.peek().cloned() {
-            Some(Token::Ident(name)) => {
+            Some(Token::TypeInt) => {
                 self.core.advance();
-                match name.as_str() {
-                    "int" => Type::Int,
-                    "bool" => Type::Bool,
-                    _ => return Err(format!("Unknown type name '{}'", name)),
-                }
+                Type::Int
+            }
+            Some(Token::TypeBool) => {
+                self.core.advance();
+                Type::Bool
             }
             Some(Token::LParen) => {
                 self.core.advance();
@@ -67,11 +67,9 @@ impl TypeParser for Parser {
             }
             _ => return Err("Expected a type name or a parenthesized type.".to_string()),
         };
-        if let Some(Token::Ident(s)) = self.core.peek() {
-            if s == "list" {
-                self.core.advance();
-                return Ok(Type::List(Box::new(ty)));
-            }
+        if let Some(Token::TypeList) = self.core.peek() {
+            self.core.advance();
+            return Ok(Type::List(Box::new(ty)));
         }
         Ok(ty)
     }
