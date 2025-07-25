@@ -1,4 +1,4 @@
-use std::fmt::{self, write, Debug};
+use std::fmt::{self, Debug};
 use std::collections::{HashSet};
 use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
