@@ -1,11 +1,11 @@
 use std::fmt;
-use  crate::common::ast::{NamedExpr, PolyTypeEnv, Type};
+use  crate::common::ast::{NamedExpr, NamedVar, PolyTypeEnv, Type};
 
 #[derive(Debug)]
 pub struct Derivation {
     pub env: PolyTypeEnv,
     pub expr: NamedExpr,
-    pub ty: Type,
+    pub ty: Type<NamedVar>,
     pub rule: String,
     pub premises: Vec<Derivation>,
 }

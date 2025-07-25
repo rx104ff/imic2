@@ -24,6 +24,7 @@ fn main() {
             return;
         }
     };
+    
 
     // 3. Run the type checker on the parsed judgment.
     // The `judgment` object is now correctly instantiated and can be passed directly.

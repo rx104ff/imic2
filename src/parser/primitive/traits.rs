@@ -1,4 +1,4 @@
-use crate::{common::{ast::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, BaseParser}};
+use crate::{common::{ast::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op, Type}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, BaseParser}};
 
 
 /// Primitive Parsing Traits
@@ -26,6 +26,28 @@ pub trait BoolParsing<Output: FromBool> : BaseParser {
         } else {
             Err(format!("Expected bool, but got {:?}", self.core().peek()))
         }
+    }
+}
+
+/// A trait for parsing an `int` type keyword.
+pub trait IntTypeParsing<Output>: BaseParser {
+    fn check(token: &Token) -> bool {
+        matches!(token, Token::TypeInt)
+    }
+    fn parse(&mut self) -> Result<Type<Self::V>, String> {
+        self.core().advance();
+        Ok(Type::Int)
+    }
+}
+
+/// A trait for parsing a `bool` type keyword.
+pub trait BoolTypeParsing<Output>: BaseParser {
+    fn check(token: &Token) -> bool {
+        matches!(token, Token::TypeBool)
+    }
+    fn parse(&mut self) -> Result<Type<Self::V>, String> {
+        self.core().advance();
+        Ok(Type::Bool)
     }
 }
 

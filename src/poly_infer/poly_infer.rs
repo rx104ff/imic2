@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
-use crate::common::ast::{Expr, Judgment, NamedExpr, Op, PolyTypeEnv, TyScheme, Type, TypeVar};
+use crate::common::ast::{Expr, Judgment, NamedExpr, NamedVar, Op, PolyTypeEnv, TyScheme, Type, TypeVar};
 use crate::poly_infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
 
@@ -11,7 +11,7 @@ struct InferContext {
 }
 
 impl InferContext {
-    fn new_type_var(&mut self) -> Type {
+    fn new_type_var(&mut self) -> Type<NamedVar> {
         let mut name_id = 0;
         loop {
             let name = format!("'{}", ((name_id % 26) as u8 + b'a') as char);
@@ -241,7 +241,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
 }
 
 // --- Polymorphism and Finalization Helpers ---
-fn generalize(env: &PolyTypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
+fn generalize(env: &PolyTypeEnv, ty: &Type<NamedVar>, sub: &Substitution) -> TyScheme<NamedVar> {
     let ty = apply_sub(ty, sub);
     let mut env_ftv = HashSet::new();
     for (_, scheme) in env {
@@ -259,7 +259,7 @@ fn generalize(env: &PolyTypeEnv, ty: &Type, sub: &Substitution) -> TyScheme {
     TyScheme { vars: quantified_vars, ty }
 }
 
-fn instantiate(scheme: &TyScheme, ctx: &mut InferContext) -> Type {
+fn instantiate(scheme: &TyScheme<NamedVar>, ctx: &mut InferContext) -> Type<NamedVar> {
     let mut fresh_sub = Substitution::new();
     for var in &scheme.vars {
         fresh_sub.insert(var.clone(), ctx.new_type_var());

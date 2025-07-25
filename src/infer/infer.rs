@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap};
-use crate::common::ast::{MonoTypeEnv, NamedExpr};
+use crate::common::ast::{MonoTypeEnv, NamedExpr, NamedVar};
 use crate::common::ast::{Expr, Op, Type, TypeVar, Judgment};
 use crate::infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
@@ -11,7 +11,7 @@ struct InferContext {
 }
 
 impl InferContext {
-    fn new_type_var(&mut self) -> Type {
+    fn new_type_var(&mut self) -> Type<NamedVar> {
         let name = format!("'{}", ((self.var_counter % 26) as u8 + b'a') as char);
         let id = self.var_counter;
         self.var_counter += 1;
@@ -45,9 +45,9 @@ pub fn check_judgment(judgment: &Judgment) -> Result<Derivation, String> {
 
 /// The core recursive function of the type system.
 /// It verifies that expression `e` has `expected_ty` in the current context.
-fn check_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr, expected_ty: &Type) -> Result<Derivation, String> {
+fn check_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr, expected_ty: &Type<NamedVar>) -> Result<Derivation, String> {
     if let Expr::Fun(param, body) = e {
-        if let Type::Fun(ty1, ty2) = expected_ty {
+        if let Type::BinOp(ty1,_ , ty2) = expected_ty {
             let mut new_env = env.clone();
             new_env.push((param.clone(), *ty1.clone()));
             let mut body_ctx = InferContext {
@@ -128,8 +128,16 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             }
             Err(format!("Unbound variable: {}", var.0))
         }
-        Expr::Group(e) => {
-            infer_expr(ctx, env, e)
+        Expr::Group(inner_expr) => {
+            let inner_deriv = infer_expr(ctx, env, inner_expr)?;
+            
+            Ok(Derivation {
+                env: env.clone(),
+                expr: e.clone(),
+                ty: Type::Group(Box::new(inner_deriv.ty.clone())),
+                rule: inner_deriv.rule.clone(),
+                premises: inner_deriv.premises,
+            })
         }
         Expr::Fun(param, body) => {
             let param_ty = ctx.new_type_var();
@@ -138,7 +146,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
 
             let body_deriv = infer_expr(ctx, &new_env, body)?;
             
-            let fun_ty = Type::Fun(Box::new(param_ty), Box::new(body_deriv.ty.clone()));
+            let fun_ty = Type::BinOp(Box::new(param_ty), Op::Fun, Box::new(body_deriv.ty.clone()));
             
             Ok(Derivation {
                 env: env.clone(), expr: e.clone(), ty: fun_ty,
@@ -153,7 +161,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             let t2 = apply_sub(&d2.ty, &ctx.sub);
 
             let return_ty = ctx.new_type_var();
-            let fun_ty = Type::Fun(Box::new(t2), Box::new(return_ty.clone()));
+            let fun_ty = Type::BinOp(Box::new(t2), Op::Fun, Box::new(return_ty.clone()));
             
             let final_sub = unify(&t1, &fun_ty, &ctx.sub)?;
             ctx.sub = final_sub;
@@ -189,7 +197,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
             
             if let Op::App = op {
                 let return_ty = ctx.new_type_var();
-                let fun_ty = Type::Fun(Box::new(t2), Box::new(return_ty.clone()));
+                let fun_ty = Type::BinOp(Box::new(t2), Op::Fun, Box::new(return_ty.clone()));
                 
                 ctx.sub = unify(&t1, &fun_ty, &ctx.sub)?;
                 
@@ -251,7 +259,7 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
         Expr::LetRec(f, x, e1, e2) => {
             let t1 = ctx.new_type_var();
             let t2 = ctx.new_type_var();
-            let fun_ty = Type::Fun(Box::new(t1.clone()), Box::new(t2.clone()));
+            let fun_ty = Type::BinOp(Box::new(t1.clone()), Op::Fun, Box::new(t2.clone()));
             
             let mut new_env1 = env.clone();
             new_env1.push((f.clone(), fun_ty.clone()));
@@ -303,11 +311,17 @@ fn infer_expr(ctx: &mut InferContext, env: &MonoTypeEnv, e: &NamedExpr) -> Resul
     }
 }
 
-fn default_unconstrained_vars(t: &Type) -> Type {
+fn default_unconstrained_vars(t: &Type<NamedVar>) -> Type<NamedVar> {
     match t {
         Type::Var(_) => Type::Int, // Default hanging type variables to int
         Type::Fun(p, r) => Type::Fun(Box::new(default_unconstrained_vars(p)), Box::new(default_unconstrained_vars(r))),
         Type::List(inner) => Type::List(Box::new(default_unconstrained_vars(inner))),
+        Type::BinOp(p, op , r) => Type::BinOp(
+            Box::new(default_unconstrained_vars(p)), 
+            op.clone(), 
+            Box::new(default_unconstrained_vars(r))
+        ),
+        Type::Group(inner) => Type::Group(Box::new(default_unconstrained_vars(inner))),
         _ => t.clone(), // Concrete types (Int, Bool) remain unchanged.
     }
 }

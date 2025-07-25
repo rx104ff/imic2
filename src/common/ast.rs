@@ -43,7 +43,7 @@ impl fmt::Display for DBIndex {
 
 // --- Universal Primitives ---
 #[derive(Debug, Clone, PartialEq)]
-pub enum Op { Add, Sub, Mul, Lt, Cons, App }
+pub enum Op { Add, Sub, Mul, Lt, Cons, App, Fun }
 
 // --- Types for Nat Language ---
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,20 +136,22 @@ impl DisplayEnv for NamelessEnv {
 
 // --- Types for Type Systems (TypingML4 & PolyTypingML4) ---
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type<V: Variable> {
     Int,
     Bool,
-    Fun(Box<Type>, Box<Type>),
-    List(Box<Type>),
+    SS(V),
+    Fun(Box<Type<V>>, Box<Type<V>>),
+    List(Box<Type<V>>),
     Var(TypeVar),
-    Group(Box<Type>),
+    Group(Box<Type<V>>),
+    BinOp(Box<Type<V>>, Op, Box<Type<V>>)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyScheme {
+#[derive(Debug, Clone, PartialEq)]
+pub struct TyScheme<V: Variable> {
     pub vars: Vec<TypeVar>,
-    pub ty: Type,
+    pub ty: Type<V>,
 }
 
 #[derive(Debug, Clone)]
@@ -184,8 +186,14 @@ impl Hash for TypeVar {
     } 
 }
 
-pub type MonoTypeEnv = Vec<(NamedVar, Type)>;
-pub type PolyTypeEnv = Vec<(NamedVar, TyScheme)>;
+impl Op {
+    pub fn is_right_assoc(&self) -> bool {
+        matches!(self, Op::Fun | Op::Cons)
+    }
+}
+
+pub type MonoTypeEnv = Vec<(NamedVar, Type<NamedVar>)>;
+pub type PolyTypeEnv = Vec<(NamedVar, TyScheme<NamedVar>)>;
 
 // --- Universal Expression AST ---
 
@@ -252,6 +260,14 @@ pub trait FromBool {
 pub trait FromNil {
     fn from_nil() -> Self;
 }
+
+// pub trait FromIntType {
+//     fn from_int_type() -> Self;
+// }
+
+// pub trait FromIntType {
+//     fn from_int_type() -> Self;
+// }
 
 pub trait FromVar<V: Variable> {
     fn from_var(var: V) -> Self;
@@ -324,7 +340,7 @@ impl<V: Variable> FromGroup for Value<V> {
     }
 }
 
-impl FromGroup for Type {
+impl<V: Variable> FromGroup for Type<V> {
     fn from_group(inner: Self) -> Self {
         Type::Group(Box::new(inner))
     }
@@ -354,10 +370,10 @@ pub enum Judgment {
     EvaluatesTo(NamedEnv, NamedExpr), // Assuming Type can also represent ML values
     
     // For Type Checking
-    Infer(MonoTypeEnv, NamedExpr, Type),
+    Infer(MonoTypeEnv, NamedExpr, Type<NamedVar>),
     
     // For Polymorphic Inference
-    PolyInfer(PolyTypeEnv, NamedExpr, Type),
+    PolyInfer(PolyTypeEnv, NamedExpr, Type<NamedVar>),
 }
 
 // --- All Display and Helper Implementations ---
@@ -399,7 +415,7 @@ impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Op::Add => write!(f, "+"), Op::Sub => write!(f, "-"), Op::Mul => write!(f, "*"),
-            Op::Lt => write!(f, "<"), Op::Cons => write!(f, "::"), Op::App => write!(f, ""),
+            Op::Lt => write!(f, "<"), Op::Cons => write!(f, "::"), Op::App => write!(f, ""), Op::Fun => write!(f, "->")
         }
     }
 }
@@ -464,20 +480,48 @@ impl fmt::Display for TypeVar {
     }
 }
 
-impl fmt::Display for Type {
+impl<V: Variable> fmt::Display for Type<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Type::Int => write!(f, "int"),
             Type::Bool => write!(f, "bool"),
             Type::Fun(t1, t2) => write!(f, "({} -> {})", t1, t2),
-            Type::List(t) => write!(f, "{} list", t),
             Type::Var(tv) => write!(f, "{}", tv),
-            Type::Group(t) => write!(f, "{}", t),
+            Type::List(t) => {
+                // Add parentheses if the inner type is a binary operation to avoid ambiguity.
+                if let Type::BinOp(_, _, _) = &**t {
+                    write!(f, "({}) list", t)
+                } else {
+                    write!(f, "{} list", t)
+                }
+            },
+            Type::Group(t) => write!(f, "({})", t),
+            Type::BinOp(t1, op, t2) => {
+                // For a right-associative operator (like `->` or `::`), if the
+                // left-hand side is also a binary operator, it needs parentheses
+                // to preserve the correct grouping, e.g., `(A -> B) -> C`.
+                if op.is_right_assoc() {
+                    if let Type::BinOp(_, _, _) = &**t1 {
+                        write!(f, "({}) {} {}", t1, op, t2)
+                    } else {
+                        write!(f, "{} {} {}", t1, op, t2)
+                    }
+                } else {
+                    // For a left-associative operator (like `+`), if the
+                    // right-hand side is also a binary operator, it needs parentheses.
+                    if let Type::BinOp(_, _, _) = &**t2 {
+                        write!(f, "{} {} ({})", t1, op, t2)
+                    } else {
+                        write!(f, "{} {} {}", t1, op, t2)
+                    }
+                }
+            }
+            _ => write!(f, "{}", ""),
         }
     }
 }
 
-impl fmt::Display for TyScheme {
+impl<V: Variable> fmt::Display for TyScheme<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.vars.is_empty() {
             write!(f, "{}", self.ty)
@@ -493,7 +537,7 @@ impl fmt::Display for TyScheme {
 }
 
 // --- Helper methods for finding free type variables ---
-impl Type {
+impl<V: Variable> Type<V> {
     pub fn free_type_vars(&self) -> HashSet<TypeVar> {
         let mut ftv = HashSet::new();
         self.collect_ftv(&mut ftv);

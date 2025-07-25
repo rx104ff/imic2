@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::build_expression_parser;
-use crate::common::ast::{Expr, Judgment, NamedVar, PolyTypeEnv, TyScheme, Type, TypeVar};
+use crate::{build_expression_parser, build_type_parser};
+use crate::common::ast::{Expr, Judgment, NamedVar, PolyTypeEnv, TyScheme, TypeVar};
 use crate::common::tokenizer::Token;
 use crate::parser::primitive::traits::VariableParsing;
-use crate::parser::{ParserCore, TypeParser, ExpressionParser};
+use crate::parser::{ParserCore, TypeParser, ExpressionParser, BaseParser};
 
 
 /// A recursive descent parser for the TypingML4 language.
@@ -47,40 +47,21 @@ build_expression_parser! {
     ]
 }
 
-impl TypeParser for Parser {
-    fn core(&mut self) -> &mut ParserCore {
-        &mut self.core
-    }
+build_type_parser! {
+    parser = Parser,
+    var_type = NamedVar,
 
-    fn parse_single_type(&mut self) -> Result<Type, String> {
-        let ty = match self.core.peek().cloned() {
-            Some(Token::TypeInt) => {
-                self.core.advance();
-                Type::Int
-            }
-            Some(Token::TypeBool) => {
-                self.core.advance();
-                Type::Bool
-            }
-            Some(Token::TypeVar(name)) => {
-                self.core.advance();
-                let tv = self.get_or_create_parser_var(name);
-                Type::Var(tv)
-            }
-            Some(Token::LParen) => {
-                self.core.advance();
-                let inner_ty = self.parse_type()?;
-                self.core.expect(Token::RParen)?;
-                inner_ty
-            }
-            _ => return Err("Expected a type name or a parenthesized type.".to_string()),
-        };
-        if let Some(Token::TypeList) = self.core.peek() {
-            self.core.advance();
-            return Ok(Type::List(Box::new(ty)));
-        }
-        Ok(ty)
-    }
+    primitive_parsers: [
+        IntTypeParsing,
+        BoolTypeParsing,
+        GroupParsing
+    ],
+    postfix_parsers: [
+        ListTypeParsing
+    ],
+    binop_chain: [
+        { FunTypeParsing }
+    ]
 }
 
 impl Parser {
@@ -132,7 +113,7 @@ impl Parser {
     }
 
     // Parses a full type scheme, including `forall` quantifiers.
-    fn parse_type_scheme(&mut self) -> Result<TyScheme, String> {
+    fn parse_type_scheme(&mut self) -> Result<TyScheme<NamedVar>, String> {
         let mut quantified_vars = vec![];
         let mut potential_var_names = vec![];
         let initial_pos = self.core.pos();

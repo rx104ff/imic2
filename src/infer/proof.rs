@@ -1,11 +1,11 @@
 use std::fmt;
-use  crate::common::ast::{MonoTypeEnv, NamedExpr, Type};
+use  crate::common::ast::{MonoTypeEnv, NamedExpr, NamedVar, Type};
 
 #[derive(Debug)]
 pub struct Derivation {
     pub env: MonoTypeEnv,
     pub expr: NamedExpr,
-    pub ty: Type,
+    pub ty: Type<NamedVar>,
     pub rule: String,
     pub premises: Vec<Derivation>,
 }

@@ -1,0 +1,158 @@
+#[macro_export]
+macro_rules! build_type_parser {
+    (
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+        primitive_parsers: [ $( $primitive_trait:ident ),* ],
+        postfix_parsers: [ $( $postfix_trait:ident ),* ],
+        binop_chain: [ { $first_binop:ident $(, $rest_binops:ident)* } $(, $rest_chain_entry:tt)* ]
+    ) => {
+        // --- Conditionally Implement Traits ---
+        $( 
+            impl crate::parser::r#type::traits::$postfix_trait<$var> for $parser_struct {} 
+        )* 
+        
+        // Binop traits are implemented via the recursive macro below.
+
+        // --- Implement mandatory primitive traits ---
+        $(
+            impl crate::parser::primitive::$primitive_trait<crate::common::ast::Type<$var>> for $parser_struct {}
+        )*
+
+        // --- Generate Parser Methods ---
+        $crate::__internal_build_type_parser_logic! {
+            parser = $parser_struct,
+            var_type = $var,
+            primitive_parsers = [ $( $primitive_trait ),* ],
+            postfix_parsers = [ $( $postfix_trait ),* ],
+            chain = [ { $first_binop $(, $rest_binops)* } $(, $rest_chain_entry)* ]
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! __internal_build_type_parser_logic {
+    // Recursive case: More than one level in the chain.
+    (
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+        primitive_parsers = [ $( $primitive_trait:ident ),* ],
+        postfix_parsers = [ $( $postfix_trait:ident ),* ],
+        chain = [
+            { $first_current:ident $(, $rest_current:ident)* }, // Current level
+            { $next_level:ident $(, $rest_next:ident)* }       // Next level
+            $(, $tail:tt )* // The rest
+        ]
+    ) => {
+        // Implement the traits for the current precedence level.
+        impl crate::parser::r#type::traits::$first_current<$var> for $parser_struct {}
+        $( 
+            impl crate::parser::r#type::traits::$rest_current<$var> for $parser_struct {} 
+        )*
+
+        paste::paste! {
+            impl $parser_struct {
+                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+                    let mut lhs = self.[<parse_ $next_level:lower _level>]()?;
+                    loop {
+                        let maybe_op = {
+                            let mut op = None;
+                            if op.is_none() { op = <Self as crate::parser::r#type::traits::$first_current<$var>>::handle(self); }
+                            $( if op.is_none() { op = <Self as crate::parser::r#type::traits::$rest_current<$var>>::handle(self); } )*
+                            op
+                        };
+
+                        if let Some(op) = maybe_op {
+                            let rhs = if <Self as crate::parser::r#type::traits::$first_current<$var>>::is_right_assoc() {
+                                self.[<parse_ $first_current:lower _level>]()?
+                            } else {
+                                self.[<parse_ $next_level:lower _level>]()?
+                            };
+                            lhs = crate::common::ast::Type::BinOp(Box::new(lhs), op, Box::new(rhs));
+                        } else { break; }
+                    }
+                    Ok(lhs)
+                }
+            }
+        }
+        // Recurse to build the next level of the parser.
+        $crate::__internal_build_type_parser_logic! {
+            parser = $parser_struct,
+            var_type = $var,
+            primitive_parsers = [ $( $primitive_trait ),* ],
+            $(postfix_parsers: [ $( $postfix_trait ),* ],)?
+            chain = [ { $next_level $(, $rest_next)* } $(, $tail)* ]
+        }
+    };
+
+    // Base case: The last (or only) level in the chain.
+    (
+        parser = $parser_struct:ty,
+        var_type = $var:ty,
+        primitive_parsers = [ $( $primitive_trait:ident ),* ],
+        postfix_parsers = [ $( $postfix_trait:ident ),* ],
+        chain = [ { $first_current:ident $(, $rest_current:ident)* } ]
+    ) => {
+        impl crate::parser::r#type::traits::$first_current<$var> for $parser_struct {}
+        $( 
+            impl crate::parser::r#type::traits::$rest_current<$var> for $parser_struct {} 
+        )*
+
+        paste::paste! {
+            impl $parser_struct {
+                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+                    let mut lhs = self.parse_type_atom()?;
+                    // Postfix logic is handled immediately after parsing an atom.
+                        loop {
+                            let mut handled = false;
+                            if let Some(token) = self.core().peek() {
+                                $(
+                                    if !handled && <Self as crate::parser::r#type::traits::$postfix_trait<$var>>::check(token) {
+                                        lhs = <Self as crate::parser::r#type::traits::$postfix_trait<$var>>::handle(self, lhs)?;
+                                        handled = true;
+                                    }
+                                )*
+                            }
+                            if !handled { break; }
+                        }
+
+                     loop {
+                        let maybe_op = {
+                            let mut op = None;
+                            if op.is_none() { op = <Self as crate::parser::r#type::traits::$first_current<$var>>::handle(self); }
+                            $( if op.is_none() { op = <Self as crate::parser::r#type::traits::$rest_current<$var>>::handle(self); } )*
+                            op
+                        };
+
+                        if let Some(op) = maybe_op {
+                            let rhs = if <Self as crate::parser::r#type::traits::$first_current<$var>>::is_right_assoc() {
+                                self.[<parse_ $first_current:lower _level>]()?
+                            } else {
+                                self.parse_type_atom()?
+                            };
+                            lhs = crate::common::ast::Type::BinOp(Box::new(lhs), op, Box::new(rhs));
+                        } else { break; }
+                    }
+                    Ok(lhs)
+                }
+            }
+        }
+
+        impl crate::parser::r#type::traits::TypeParser<$var> for $parser_struct {
+            fn parse_type(&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+                paste::paste! { self.[<parse_ $first_current:lower _level>]() }
+            }
+            
+            fn parse_type_atom(&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+                if let Some(token) = self.core().peek().cloned() {
+                    $(
+                        if <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::Type<$var>>>::check(&token) {
+                            return <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::Type<$var>>>::parse(self);
+                        }
+                    )*
+                }
+                Err(format!("Unexpected token at type atomic level: {:?}", self.core().peek()))
+            }
+        }
+    };
+}

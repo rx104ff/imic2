@@ -1,4 +1,4 @@
-use crate::{common::ast::{Expr, Value, Variable}, parser::{BaseParser, ExpressionParser, ValueParser}};
+use crate::{common::ast::{Expr, Type, Value, Variable}, parser::{BaseParser, ExpressionParser, TypeParser, ValueParser}};
 
 pub trait ParseTarget<T>: BaseParser {
     fn parse_target(&mut self) -> Result<T, String>;
@@ -46,5 +46,18 @@ where
     }
     fn parse_target_atom(&mut self) -> Result<Value<V>, String> {
         self.parse_value()
+    }
+}
+
+impl<P, V> ParseTarget<Type<V>> for P
+where
+    P: TypeParser<V> + ?Sized,
+    V: Variable,
+{
+    fn parse_target(&mut self) -> Result<Type<V>, String> {
+        self.parse_type()
+    }
+    fn parse_target_atom(&mut self) -> Result<Type<V>, String> {
+        self.parse_type_atom()
     }
 }

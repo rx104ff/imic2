@@ -30,7 +30,8 @@ impl Axiom for Derivation {
                 Op::Mul => "times",
                 Op::Lt => "less than",
                 Op::Cons => "cons",
-                Op::App => ""
+                Op::App => "",
+                _ => "",
             };
 
             return Some(format!(
