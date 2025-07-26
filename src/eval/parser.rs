@@ -2,6 +2,7 @@
 
 use crate::common::ast::core::NamedVar;
 use crate::common::ast::judgement::Judgment;
+use crate::common::ast::value::NamedValue;
 use crate::parser::environment::traits::EnvironmentParser;
 use crate::parser::{ParserCore, ValueParser, ExpressionParser, BaseParser};
 use crate::{build_expression_parser, build_value_parser};
@@ -74,7 +75,7 @@ impl Parser {
     /// It parses a judgment of the form `Γ ⊢ e evalto v`.
     pub fn parse(&mut self) -> Result<Judgment, String> {
         let env = if let Some(Token::Ident(_)) = self.core().peek() {
-            <Self as EnvironmentParser<NamedVar>>::parse_env_list(self)
+            <Self as EnvironmentParser<NamedVar, NamedValue>>::parse_env_list(self)
         } else {
             Ok(vec![])
         }?;

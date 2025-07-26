@@ -1,8 +1,7 @@
 use crate::common::ast::core::NamedVar;
-use crate::common::ast::expr::Expr;
 use crate::common::ast::judgement::Judgment;
-use crate::common::ast::r#type::MonoTypeEnv;
-use crate::parser::primitive::traits::VariableParsing;
+use crate::common::ast::r#type::{Type};
+use crate::parser::environment::traits::EnvironmentParser;
 use crate::parser::{BaseParser, ExpressionParser, ParserCore, TypeParser};
 use crate::{build_expression_parser, build_type_parser};
 use crate::common::tokenizer::Token;
@@ -70,26 +69,12 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Judgment, String> {
-        let env = self.parse_type_env()?;
+        // let env = self.parse_type_env()?;
+        let env = <Self as EnvironmentParser<NamedVar, Type<NamedVar>>>::parse_env_list(self)?;
         self.core.expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;
         self.core.expect(Token::Colon)?;
         let ty = self.parse_type()?;
         Ok(Judgment::Infer(env, expr, ty))
-    }
-
-    fn parse_type_env(&mut self) -> Result<MonoTypeEnv, String> {
-        let mut env = MonoTypeEnv::new();
-        if self.core.peek() == Some(&Token::Turnstile) { return Ok(env); }
-        loop {
-
-            let var = <Self as VariableParsing<Expr<NamedVar>>>::parse(self)?.into_variable().ok_or("Expected a variable name in `let` expression, but found something else.")?;
-            self.core.expect(Token::Colon)?;
-            let ty = self.parse_type()?;
-            env.push((var, ty));
-            if self.core.peek() == Some(&Token::Comma) { self.core.advance(); } 
-            else { break; }
-        }
-        Ok(env)
     }
 }

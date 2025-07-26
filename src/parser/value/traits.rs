@@ -29,7 +29,7 @@ where
     }
 }
 
-pub trait FunValParsing<V>: ValueParser<V> + ExpressionParser<V> + EnvironmentParser<V> + VariableParsing<Expr<V>>
+pub trait FunValParsing<V>: ValueParser<V> + ExpressionParser<V> + EnvironmentParser<V, Value<V>> + VariableParsing<Expr<V>>
 where
     V: Variable + ParseableVariable,
 {
@@ -39,7 +39,7 @@ where
 
     fn parse(&mut self) -> Result<Value<V>, String> {
         self.core().advance(); // consume '('
-        let env = <Self as EnvironmentParser<V>>::parse_env_list(self)?;
+        let env = <Self as EnvironmentParser<V, Value<V>>>::parse_env_list(self)?;
         self.core().expect(Token::RParen)?;
         self.core().expect(Token::LBracket)?;
         self.core().expect(Token::Fun)?;
@@ -53,7 +53,7 @@ where
     }
 }
 
-pub trait RecFunValParsing<V>: ValueParser<V> + ExpressionParser<V> + EnvironmentParser<V> + VariableParsing<Expr<V>>
+pub trait RecFunValParsing<V>: ValueParser<V> + ExpressionParser<V> + EnvironmentParser<V, Value<V>> + VariableParsing<Expr<V>>
 where
     V: Variable + ParseableVariable,
 {
@@ -63,7 +63,7 @@ where
 
     fn parse(&mut self) -> Result<Value<V>, String> {
         self.core().advance(); // consume '('
-        let env = <Self as EnvironmentParser<V>>::parse_env_list(self)?;
+        let env = <Self as EnvironmentParser<V, Value<V>>>::parse_env_list(self)?;
         self.core().expect(Token::RParen)?;
         self.core().expect(Token::LBracket)?;
         self.core().expect(Token::Rec)?;
