@@ -1,4 +1,4 @@
-use crate::{build_expression_parser, build_value_parser, common::{ast::{core::NamelessVar, judgement::Judgment, value::{NamedValue, NamelessValue}}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, BaseParser, ExpressionParser, ParserCore, ValueParser}};
+use crate::{build_expression_parser, build_value_parser, common::{ast::{core::NamelessVar, judgement::Judgment, value::{NamelessValue}}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, BaseParser, ExpressionParser, ParserCore, ValueParser}};
 
 pub struct Parser {
     core: ParserCore,
