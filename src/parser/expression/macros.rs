@@ -11,7 +11,7 @@ macro_rules! build_expression_parser {
 
         // Phase 1: Implement the primitive and dispatch traits.
         $(
-            impl crate::parser::primitive::$primitive_trait<$crate::common::ast::Expr<$var>> for $parser_struct {}
+            impl crate::parser::primitive::$primitive_trait<$crate::common::ast::expr::Expr<$var>> for $parser_struct {}
         )*
         $(
             impl crate::parser::expression::$dispatch_trait<$var> for $parser_struct {}
@@ -72,7 +72,7 @@ macro_rules! __internal_build_parser_logic {
                     $( $methods )*
 
                     // The new method for the current level. It's named after the first trait.
-                    fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                    fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::expr::Expr<$var>, String> {
                         // It calls the parser for the *next* level of precedence.
                         let mut lhs = self.[<parse_ $first_next:lower _level>]()?;
                         loop {
@@ -94,7 +94,7 @@ macro_rules! __internal_build_parser_logic {
                                 } else {
                                     self.[<parse_ $first_next:lower _level>]()?
                                 };
-                                lhs = $crate::common::ast::Expr::BinOp(Box::new(lhs), op, Box::new(rhs));
+                                lhs = $crate::common::ast::expr::Expr::BinOp(Box::new(lhs), op, Box::new(rhs));
                             } else { break; }
                         }
                         Ok(lhs)
@@ -127,7 +127,7 @@ macro_rules! __internal_build_parser_logic {
             impl crate::parser::expression::$rest_current<$var> for $parser_struct {}
         )*
         $(
-            impl crate::parser::primitive::$unary_trait<$crate::common::ast::Expr<$var>> for $parser_struct {}
+            impl crate::parser::primitive::$unary_trait<$crate::common::ast::expr::Expr<$var>> for $parser_struct {}
         )*
 
         paste::paste! {
@@ -136,7 +136,7 @@ macro_rules! __internal_build_parser_logic {
                 $( $methods )*
 
                 // The method for the final level of the chain.
-                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<$crate::common::ast::expr::Expr<$var>, String> {
                     // It calls `parse_expr_atom` to terminate the recursion.
                     let mut lhs = self.parse_expr_atom()?;
                     loop {
@@ -152,17 +152,17 @@ macro_rules! __internal_build_parser_logic {
                             } else {
                                 self.parse_expr_atom()?
                             };
-                            lhs = $crate::common::ast::Expr::BinOp(Box::new(lhs), op, Box::new(rhs));
+                            lhs = $crate::common::ast::expr::Expr::BinOp(Box::new(lhs), op, Box::new(rhs));
                         } else { break; }
                     }
                     Ok(lhs)
                 }
 
-                fn parse_unary(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+                fn parse_unary(&mut self) -> Result<$crate::common::ast::expr::Expr<$var>, String> {
                     if let Some(token) = self.core().peek() {
                         $(
-                            if <Self as crate::parser::primitive::$unary_trait<$crate::common::ast::Expr<$var>>>::check(token) {
-                                return <Self as crate::parser::primitive::$unary_trait<$crate::common::ast::Expr<$var>>>::parse(self);
+                            if <Self as crate::parser::primitive::$unary_trait<$crate::common::ast::expr::Expr<$var>>>::check(token) {
+                                return <Self as crate::parser::primitive::$unary_trait<$crate::common::ast::expr::Expr<$var>>>::parse(self);
                             }
                         )*
                     }
@@ -173,7 +173,7 @@ macro_rules! __internal_build_parser_logic {
 
         // 3. Implement the `ExpressionParser` trait.
         impl crate::parser::expression::traits::ExpressionParser<$var> for $parser_struct {
-            fn parse_expr(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+            fn parse_expr(&mut self) -> Result<$crate::common::ast::expr::Expr<$var>, String> {
                 if let Some(token) = self.core().peek() {
                     $(
                         if <Self as crate::parser::expression::$dispatch_trait<$var>>::check(token) {
@@ -188,15 +188,15 @@ macro_rules! __internal_build_parser_logic {
                 }
             }
 
-            fn parse_expr_atom(&mut self) -> Result<$crate::common::ast::Expr<$var>, String> {
+            fn parse_expr_atom(&mut self) -> Result<$crate::common::ast::expr::Expr<$var>, String> {
                 if let Some(token) = self.core().peek().cloned() {
                     $(
-                        if <Self as crate::parser::primitive::$primitive_trait<$crate::common::ast::Expr<$var>>>::check(&token) {
-                            return <Self as crate::parser::primitive::$primitive_trait<$crate::common::ast::Expr<$var>>>::parse(self);
+                        if <Self as crate::parser::primitive::$primitive_trait<$crate::common::ast::expr::Expr<$var>>>::check(&token) {
+                            return <Self as crate::parser::primitive::$primitive_trait<$crate::common::ast::expr::Expr<$var>>>::parse(self);
                         }
                     )*
                     $(
-                        if <Self as crate::parser::primitive::$unary_trait<$crate::common::ast::Expr<$var>>>::check(&token) {
+                        if <Self as crate::parser::primitive::$unary_trait<$crate::common::ast::expr::Expr<$var>>>::check(&token) {
                         return self.parse_unary();
                         }
                     )*

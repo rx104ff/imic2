@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
-use crate::common::ast::{Expr, Judgment, NamedExpr, NamedVar, Op, PolyTypeEnv, TyScheme, Type, TypeVar};
+use crate::common::ast::core::{NamedVar, Op};
+use crate::common::ast::expr::{Expr, NamedExpr};
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::r#type::{PolyTypeEnv, TyScheme, Type, TypeVar};
 use crate::poly_infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
 

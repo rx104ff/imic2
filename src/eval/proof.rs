@@ -1,5 +1,4 @@
-use crate::common::ast::{NamedEnv, NamedExpr, NamedValue};
-use crate::eval::version::{LanguageVersion};
+use crate::{common::ast::{expr::NamedExpr, value::{NamedEnv, NamedValue}}, eval::version::LanguageVersion};
 
 pub trait Axiom {
     fn to_axiom_string(&self) -> Option<String>;

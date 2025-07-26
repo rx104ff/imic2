@@ -1,4 +1,4 @@
-use crate::common::{ast::Variable, tokenizer::Token};
+use crate::common::{ast::core::Variable, tokenizer::Token};
 
 pub struct ParserCore {
     tokens: Vec<Token>,

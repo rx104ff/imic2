@@ -1,4 +1,4 @@
-use crate::{common::{ast::{Expr, Op, Value, Variable}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, expression::traits::ExpressionParser, primitive::traits::{ParseableVariable, VariableParsing}, BaseParser}};
+use crate::{common::{ast::{core::{Op, Variable}, expr::Expr, value::Value}, tokenizer::Token}, parser::{environment::traits::EnvironmentParser, expression::traits::ExpressionParser, primitive::traits::{ParseableVariable, VariableParsing}, BaseParser}};
 
 pub trait ValueParser<V>: BaseParser<V = V>
 where

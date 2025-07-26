@@ -16,7 +16,7 @@ macro_rules! build_type_parser {
 
         // --- Implement mandatory primitive traits ---
         $(
-            impl crate::parser::primitive::$primitive_trait<crate::common::ast::Type<$var>> for $parser_struct {}
+            impl crate::parser::primitive::$primitive_trait<crate::common::ast::r#type::Type<$var>> for $parser_struct {}
         )*
 
         // --- Generate Parser Methods ---
@@ -100,7 +100,7 @@ macro_rules! __internal_build_type_parser_logic {
 
         paste::paste! {
             impl $parser_struct {
-                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<crate::common::ast::r#type::Type<$var>, String> {
                     let mut lhs = self.parse_type_atom()?;
                     // Postfix logic is handled immediately after parsing an atom.
                         loop {
@@ -130,7 +130,7 @@ macro_rules! __internal_build_type_parser_logic {
                             } else {
                                 self.parse_type_atom()?
                             };
-                            lhs = crate::common::ast::Type::BinOp(Box::new(lhs), op, Box::new(rhs));
+                            lhs = crate::common::ast::r#type::Type::BinOp(Box::new(lhs), op, Box::new(rhs));
                         } else { break; }
                     }
                     Ok(lhs)
@@ -139,15 +139,15 @@ macro_rules! __internal_build_type_parser_logic {
         }
 
         impl crate::parser::r#type::traits::TypeParser<$var> for $parser_struct {
-            fn parse_type(&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+            fn parse_type(&mut self) -> Result<crate::common::ast::r#type::Type<$var>, String> {
                 paste::paste! { self.[<parse_ $first_current:lower _level>]() }
             }
             
-            fn parse_type_atom(&mut self) -> Result<crate::common::ast::Type<$var>, String> {
+            fn parse_type_atom(&mut self) -> Result<crate::common::ast::r#type::Type<$var>, String> {
                 if let Some(token) = self.core().peek().cloned() {
                     $(
-                        if <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::Type<$var>>>::check(&token) {
-                            return <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::Type<$var>>>::parse(self);
+                        if <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::r#type::Type<$var>>>::check(&token) {
+                            return <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::r#type::Type<$var>>>::parse(self);
                         }
                     )*
                 }

@@ -1,7 +1,10 @@
 // src/ml4.rs
 
+use crate::common::ast::core::{NamedVar, Op};
+use crate::common::ast::expr::{Expr, NamedExpr};
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::value::{NamedEnv, Value};
 use crate::eval::version::{LanguageVersion};
-use crate::common::ast::{Expr, Judgment, NamedEnv, NamedExpr, NamedVar, Op, Value};
 use crate::eval::proof::{Derivation, Axiom};
 
 use std::fmt;

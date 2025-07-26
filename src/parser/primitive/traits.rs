@@ -1,4 +1,4 @@
-use crate::{common::{ast::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op, Type}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, BaseParser}};
+use crate::{common::{ast::{core::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op}, r#type::Type}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, BaseParser}};
 
 
 /// Primitive Parsing Traits

@@ -1,6 +1,5 @@
 // src/nameless_eval/eval.rs
-use crate::common::ast::{DBIndex, Expr, Judgment, NamelessEnv, NamelessExpr, NamelessValue, NamelessVar, Op};
-use crate::nameless::proof::Derivation;
+use crate::{common::ast::{core::{DBIndex, NamelessVar, Op}, expr::{Expr, NamelessExpr}, judgement::Judgment, value::{NamelessEnv, NamelessValue}}, nameless::proof::Derivation};
 
 
 pub fn derive_judgement(judgment: &Judgment) -> Result<Derivation, String> {

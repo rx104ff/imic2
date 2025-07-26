@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::common::ast::{ArithmeticOp, Judgment, ReductionType};
+use crate::common::ast::{core::{ArithmeticOp, ReductionType}, judgement::Judgment};
 
 // A structure to represent a formal proof in the Nat system
 #[derive(Debug)]

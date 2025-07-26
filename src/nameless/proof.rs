@@ -1,6 +1,7 @@
 // src/nameless_eval/proof.rs
-use crate::common::ast::{Expr, NamelessEnv, NamelessExpr, NamelessValue, Op};
 use std::fmt;
+
+use crate::common::ast::{core::Op, expr::{Expr, NamelessExpr}, value::{NamelessEnv, NamelessValue}};
 
 pub trait Axiom {
     fn to_axiom_string(&self) -> Option<String>;

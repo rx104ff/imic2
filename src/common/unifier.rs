@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
-use crate::common::ast::{NamedVar, Type, TypeVar};
+
+use crate::common::ast::{core::NamedVar, r#type::{Type, TypeVar}};
 
 // A substitution map from a type variable to its inferred type, using BTreeMap for deterministic iteration.
 pub type Substitution = BTreeMap<TypeVar, Type<NamedVar>>;

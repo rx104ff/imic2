@@ -1,7 +1,10 @@
+use crate::common::ast::core::NamedVar;
+use crate::common::ast::expr::Expr;
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::r#type::MonoTypeEnv;
 use crate::parser::primitive::traits::VariableParsing;
 use crate::parser::{BaseParser, ExpressionParser, ParserCore, TypeParser};
 use crate::{build_expression_parser, build_type_parser};
-use crate::common::ast::{Expr, Judgment, MonoTypeEnv, NamedVar};
 use crate::common::tokenizer::Token;
 
 /// A recursive descent parser for the TypingML4 language.

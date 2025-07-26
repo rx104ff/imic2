@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::common::ast::core::NamedVar;
+use crate::common::ast::expr::Expr;
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::r#type::{PolyTypeEnv, TyScheme, TypeVar};
 use crate::{build_expression_parser, build_type_parser};
-use crate::common::ast::{Expr, Judgment, NamedVar, PolyTypeEnv, TyScheme, TypeVar};
 use crate::common::tokenizer::Token;
 use crate::parser::primitive::traits::VariableParsing;
 use crate::parser::{ParserCore, TypeParser, ExpressionParser, BaseParser};

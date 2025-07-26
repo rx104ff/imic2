@@ -9,7 +9,7 @@ macro_rules! build_value_parser {
     ) => {
 
         $(
-            impl crate::parser::primitive::$primitive_trait<crate::common::ast::Value<$var>> for $parser_struct {}
+            impl crate::parser::primitive::$primitive_trait<crate::common::ast::value::Value<$var>> for $parser_struct {}
         )*
         $(
             impl crate::parser::value::traits::$dispatch_trait<$var> for $parser_struct {}
@@ -111,7 +111,7 @@ macro_rules! __internal_build_value_parser_logic {
             impl $parser_struct {
                 $( $methods )*
 
-                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<crate::common::ast::Value<$var>, String> {
+                fn [<parse_ $first_current:lower _level>] (&mut self) -> Result<crate::common::ast::value::Value<$var>, String> {
                     let mut lhs = self.parse_value_atom()?;
                     loop {
                         let maybe_op = {
@@ -126,8 +126,8 @@ macro_rules! __internal_build_value_parser_logic {
                             } else {
                                 self.parse_value_atom()?
                             };
-                             if op == crate::common::ast::Op::Cons {
-                                lhs = crate::common::ast::Value::Cons(Box::new(lhs), Box::new(rhs));
+                             if op == crate::common::ast::core::Op::Cons {
+                                lhs = crate::common::ast::value::Value::Cons(Box::new(lhs), Box::new(rhs));
                             }
                         } else { break; }
                     }
@@ -137,7 +137,7 @@ macro_rules! __internal_build_value_parser_logic {
         }
 
         impl crate::parser::value::traits::ValueParser<$var> for $parser_struct {
-            fn parse_value(&mut self) -> Result<crate::common::ast::Value<$var>, String> {
+            fn parse_value(&mut self) -> Result<crate::common::ast::value::Value<$var>, String> {
                 if let Some(token) = self.core().peek() {
                     $(
                         if <Self as crate::parser::value::traits::$dispatch_trait<$var>>::check(token) {
@@ -150,11 +150,11 @@ macro_rules! __internal_build_value_parser_logic {
                 }
             }
 
-            fn parse_value_atom(&mut self) -> Result<crate::common::ast::Value<$var>, String> {
+            fn parse_value_atom(&mut self) -> Result<crate::common::ast::value::Value<$var>, String> {
                 if let Some(token) = self.core().peek().cloned() {
                     $(
-                        if <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::Value<$var>>>::check(&token) {
-                            return <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::Value<$var>>>::parse(self);
+                        if <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::value::Value<$var>>>::check(&token) {
+                            return <Self as crate::parser::primitive::$primitive_trait<crate::common::ast::value::Value<$var>>>::parse(self);
                         }
                     )*
                     $(

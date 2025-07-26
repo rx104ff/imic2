@@ -1,4 +1,7 @@
-use crate::common::ast::{ArithmeticOp, Judgment, Nat, NamedExpr, ReductionType};
+use crate::common::ast::core::{ArithmeticOp, ReductionType};
+use crate::common::ast::expr::NamedExpr;
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::nat::Nat;
 use crate::nat::version::{ComparisonMode};
 use crate::nat::proof::Derivation;
 

@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap};
-use crate::common::ast::{MonoTypeEnv, NamedExpr, NamedVar};
-use crate::common::ast::{Expr, Op, Type, TypeVar, Judgment};
+use crate::common::ast::core::{NamedVar, Op};
+use crate::common::ast::expr::{Expr, NamedExpr};
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::r#type::{MonoTypeEnv, Type, TypeVar};
 use crate::infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
 

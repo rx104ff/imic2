@@ -1,4 +1,7 @@
-use crate::common::ast::{ArithmeticOp, Expr, Judgment, NamedExpr, Nat, ReductionType};
+use crate::common::ast::core::{ArithmeticOp, ReductionType};
+use crate::common::ast::expr::{Expr, NamedExpr};
+use crate::common::ast::judgement::Judgment;
+use crate::common::ast::nat::Nat;
 use crate::common::tokenizer::Token;
 use crate::parser::ParserCore;
 

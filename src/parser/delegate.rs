@@ -1,4 +1,4 @@
-use crate::{common::ast::{Expr, Type, Value, Variable}, parser::{BaseParser, ExpressionParser, TypeParser, ValueParser}};
+use crate::{common::ast::{core::Variable, expr::Expr, r#type::Type, value::Value}, parser::{BaseParser, ExpressionParser, TypeParser, ValueParser}};
 
 pub trait ParseTarget<T>: BaseParser {
     fn parse_target(&mut self) -> Result<T, String>;

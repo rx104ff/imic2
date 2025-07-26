@@ -1,5 +1,4 @@
-use crate::{common::{ast::{Op, Type, Variable}, tokenizer::Token}, parser::{ BaseParser}};
-
+use crate::{common::{ast::{core::{Op, Variable}, r#type::Type}, tokenizer::Token}, parser::BaseParser};
 
 pub trait TypeParser<V>: BaseParser<V = V>
 where V: Variable {
