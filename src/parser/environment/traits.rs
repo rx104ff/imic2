@@ -1,4 +1,4 @@
-use crate::{common::{ast::{core::{NamedVar, NamelessVar, Variable}, expr::Expr, r#type::Type, value::Value}, tokenizer::Token}, parser::{primitive::traits::{ParseableVariable, VariableParsing}, BaseParser, TypeParser, ValueParser}};
+use crate::{common::{ast::{core::{NamedVar, NamelessVar, Variable}, expr::Expr, r#type::{Type}, value::Value}, tokenizer::Token}, parser::{primitive::traits::{ParseableVariable, VariableParsing}, BaseParser, TypeParser, ValueParser}};
 
 pub trait ParseMeta {
     fn separator() -> Option<Token> {

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 use crate::common::ast::core::{NamedVar, Op};
 use crate::common::ast::expr::{Expr, NamedExpr};
 use crate::common::ast::judgement::Judgment;
-use crate::common::ast::r#type::{PolyTypeEnv, TyScheme, Type, TypeVar};
+use crate::common::ast::r#type::{PolyTypeEnv, Type, TypeVar};
 use crate::poly_infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
 
@@ -93,7 +93,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             let param_ty = ctx.new_type_var();
             let mut new_env = env.clone();
             // In a `fun`, the parameter is monomorphic (not a `forall` type).
-            new_env.push((param.clone(), TyScheme { vars: vec![], ty: param_ty.clone() }));
+            new_env.push((param.clone(), Type::Scheme(Box::new( vec![]), Box::new(param_ty.clone()))));
             
             let body_deriv = infer_expr(ctx, &new_env, body)?;
             
@@ -153,8 +153,8 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             let fun_ty = Type::Fun(Box::new(t1.clone()), Box::new(t2.clone()));
 
             let mut new_env1 = env.clone();
-            new_env1.push((f.clone(), TyScheme { vars: vec![], ty: fun_ty.clone() }));
-            new_env1.push((x.clone(), TyScheme { vars: vec![], ty: t1 }));
+            new_env1.push((f.clone(), Type::Scheme(Box::new(vec![]), Box::new(fun_ty.clone()))));
+            new_env1.push((x.clone(), Type::Scheme(Box::new(vec![]), Box::new(t1.clone()))));
 
             let d1 = infer_expr(ctx, &new_env1, e1)?;
             ctx.sub = unify(&d1.ty, &t2, &ctx.sub)?;
@@ -227,8 +227,8 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             let t_nil = apply_sub(&d2.ty, &ctx.sub);
 
             let mut new_env = env.clone();
-            new_env.push((x.clone(), TyScheme { vars: vec![], ty: elem_ty }));
-            new_env.push((y.clone(), TyScheme { vars: vec![], ty: list_ty }));
+            new_env.push((x.clone(), Type::Scheme(Box::new(vec![]), Box::new(elem_ty.clone()))));
+            new_env.push((y.clone(), Type::Scheme(Box::new(vec![]), Box::new(list_ty.clone()))));
 
             let d3 = infer_expr(ctx, &new_env, e3)?;
             let t_cons = apply_sub(&d3.ty, &ctx.sub);
@@ -243,43 +243,70 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
     }
 }
 
-// --- Polymorphism and Finalization Helpers ---
-fn generalize(env: &PolyTypeEnv, ty: &Type<NamedVar>, sub: &Substitution) -> TyScheme<NamedVar> {
+fn generalize(env: &PolyTypeEnv, ty: &Type<NamedVar>, sub: &Substitution) -> Type<NamedVar> {
     let ty = apply_sub(ty, sub);
+
     let mut env_ftv = HashSet::new();
-    for (_, scheme) in env {
-        env_ftv.extend(apply_sub(&scheme.ty, sub).free_type_vars());
+    for (_, poly_type) in env {
+        let substituted_type = apply_sub(poly_type, sub);
+        env_ftv.extend(substituted_type.free_type_vars());
     }
+
     let ty_ftv = ty.free_type_vars();
-    
-    // Collect the difference into a Vec
+
     let mut quantified_vars: Vec<_> = ty_ftv.difference(&env_ftv).cloned().collect();
-    
-    // Sort the quantified variables by their ID to ensure a canonical order.
-    // This is crucial for deterministic instantiation and display.
+
     quantified_vars.sort_by_key(|v| v.id);
-    
-    TyScheme { vars: quantified_vars, ty }
+
+    if quantified_vars.is_empty() {
+        ty
+    } else {
+        Type::Scheme(Box::new(quantified_vars), Box::new(ty))
+    }
 }
 
-fn instantiate(scheme: &TyScheme<NamedVar>, ctx: &mut InferContext) -> Type<NamedVar> {
-    let mut fresh_sub = Substitution::new();
-    for var in &scheme.vars {
-        fresh_sub.insert(var.clone(), ctx.new_type_var());
+fn instantiate(poly_type: &Type<NamedVar>, ctx: &mut InferContext) -> Type<NamedVar> {
+    match poly_type {
+        Type::Scheme(quantified_vars, inner_ty) => {
+            let mut fresh_sub = Substitution::new();
+            for var in &**quantified_vars { // Dereference the Box to iterate
+                fresh_sub.insert(var.clone(), ctx.new_type_var());
+            }
+
+            apply_sub(inner_ty, &fresh_sub)
+        }
+        other_type => other_type.clone(),
     }
-    apply_sub(&scheme.ty, &fresh_sub)
 }
 
 fn apply_sub_to_env(env: &PolyTypeEnv, sub: &Substitution) -> PolyTypeEnv {
     env.iter()
-        .map(|(var, scheme)| {
-            // We must not substitute the variables that are quantified by this scheme.
-            let mut temp_sub = sub.clone();
-            for quantified_var in &scheme.vars {
-                temp_sub.remove(quantified_var);
-            }
-            let new_ty = apply_sub(&scheme.ty, &temp_sub);
-            (var.clone(), TyScheme { vars: scheme.vars.clone(), ty: new_ty })
+        .map(|(var_name, original_type)| {
+            // Match on the type found in the environment.
+            let new_type = match original_type {
+                // --- Case 1: The type is a Scheme ---
+                Type::Scheme(quantified_vars, inner_ty) => {
+                    // We must not substitute the variables that are quantified by the scheme.
+                    // For example, in `(forall a. a -> b)`, we should not substitute `a`.
+                    let mut temp_sub = sub.clone();
+                    for quantified_var in &**quantified_vars { // Dereference the Box to iterate
+                        temp_sub.remove(quantified_var);
+                    }
+                    
+                    // Apply the filtered substitution to the inner type.
+                    let new_inner_ty = apply_sub(inner_ty, &temp_sub);
+
+                    // Reconstruct the scheme with the original quantified variables and the new inner type.
+                    Type::Scheme(quantified_vars.clone(), Box::new(new_inner_ty))
+                }
+                
+                // --- Case 2: The type is a monotype (any other variant) ---
+                other_type => {
+                    // For any non-scheme type, we can apply the substitution directly.
+                    apply_sub(other_type, sub)
+                }
+            };
+            (var_name.clone(), new_type)
         })
         .collect()
 }

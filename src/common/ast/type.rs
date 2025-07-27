@@ -14,14 +14,15 @@ pub enum Type<V: Variable> {
     List(Box<Type<V>>),
     Var(TypeVar),
     Group(Box<Type<V>>),
-    BinOp(Box<Type<V>>, Op, Box<Type<V>>)
+    BinOp(Box<Type<V>>, Op, Box<Type<V>>),
+    Scheme(Box<Vec<TypeVar>>, Box<Type<V>>)
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyScheme<V: Variable> {
-    pub vars: Vec<TypeVar>,
-    pub ty: Type<V>,
-}
+// #[derive(Debug, Clone, PartialEq)]
+// pub struct TyScheme<V: Variable> {
+//     pub vars: Vec<TypeVar>,
+//     pub ty: Type<V>,
+// }
 
 #[derive(Debug, Clone)]
 pub struct TypeVar {
@@ -91,24 +92,35 @@ impl<V: Variable> fmt::Display for Type<V> {
                     }
                 }
             }
+            Type::Scheme(vars, types ) => {
+                if vars.is_empty() {
+                    write!(f, "{}", types)
+                } else {
+                    let mut sorted_vars = vars.clone();
+                    sorted_vars.sort_by(|a, b| a.name.cmp(&b.name));
+
+                    let vars_str = sorted_vars.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
+                    write!(f, "{}. {}", vars_str, types)
+                        }
+            }
             _ => write!(f, "{}", ""),
         }
     }
 }
 
-impl<V: Variable> fmt::Display for TyScheme<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.vars.is_empty() {
-            write!(f, "{}", self.ty)
-        } else {
-            let mut sorted_vars = self.vars.clone();
-            sorted_vars.sort_by(|a, b| a.name.cmp(&b.name));
+// impl<V: Variable> fmt::Display for TyScheme<V> {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         if self.vars.is_empty() {
+//             write!(f, "{}", self.ty)
+//         } else {
+//             let mut sorted_vars = self.vars.clone();
+//             sorted_vars.sort_by(|a, b| a.name.cmp(&b.name));
 
-            let vars_str = sorted_vars.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
-            write!(f, "{}. {}", vars_str, self.ty)
-        }
-    }
-}
+//             let vars_str = sorted_vars.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
+//             write!(f, "{}. {}", vars_str, self.ty)
+//         }
+//     }
+// }
 
 impl<V: Variable> Type<V> {
     pub fn free_type_vars(&self) -> HashSet<TypeVar> {
@@ -132,7 +144,7 @@ impl<V: Variable> Type<V> {
 
 pub type MonoTypeEnv = Vec<(NamedVar, Type<NamedVar>)>;
 
-pub type PolyTypeEnv = Vec<(NamedVar, TyScheme<NamedVar>)>;
+pub type PolyTypeEnv = Vec<(NamedVar, Type<NamedVar>)>;
 
 impl<V: Variable> FromGroup for Type<V> {
     fn from_group(inner: Self) -> Self {

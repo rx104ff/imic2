@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use crate::common::ast::core::NamedVar;
 use crate::common::ast::expr::Expr;
 use crate::common::ast::judgement::Judgment;
-use crate::common::ast::r#type::{PolyTypeEnv, TyScheme, TypeVar};
+use crate::common::ast::r#type::{PolyTypeEnv, Type, TypeVar};
+use crate::parser::environment::traits::EnvironmentParser;
 use crate::{build_expression_parser, build_type_parser};
 use crate::common::tokenizer::Token;
 use crate::parser::primitive::traits::VariableParsing;
@@ -80,7 +81,7 @@ impl Parser {
     /// It parses a judgment of the form `env |- expr : type`
     /// and returns the parsed Judgment struct.
     pub fn parse(&mut self) -> Result<(Judgment, HashSet<String>), String> {
-        let env = self.parse_type_env()?;
+        let env = <Self as EnvironmentParser<NamedVar, Type<NamedVar>>>::parse_env_list(self)?;
         self.core.expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;
         self.core.expect(Token::Colon)?;
@@ -116,7 +117,7 @@ impl Parser {
     }
 
     // Parses a full type scheme, including `forall` quantifiers.
-    fn parse_type_scheme(&mut self) -> Result<TyScheme<NamedVar>, String> {
+    fn parse_type_scheme(&mut self) -> Result<Type<NamedVar>, String> {
         let mut quantified_vars = vec![];
         let mut potential_var_names = vec![];
         let initial_pos = self.core.pos();
@@ -138,6 +139,6 @@ impl Parser {
         }
 
         let ty = self.parse_type()?;
-        Ok(TyScheme { vars: quantified_vars, ty })
+        Ok(Type::Scheme(Box::new(quantified_vars), Box::new(ty)))
     }    
 }
