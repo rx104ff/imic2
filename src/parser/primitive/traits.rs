@@ -1,6 +1,4 @@
-use std::{any::Any, collections::{HashMap, HashSet}};
-
-use crate::{common::{ast::{core::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op, Variable}, r#type::{Type, TypeVar}}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, primitive::states::{HasState, TypeVarState}, BaseParser}};
+use crate::{common::{ast::{core::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op, Variable}, r#type::{Type}}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, primitive::states::{HasState, TypeVarState}, BaseParser}};
 
 /// Primitive Parsing Traits
 pub trait IntParsing<Output: FromInt> : BaseParser {

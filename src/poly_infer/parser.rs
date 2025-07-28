@@ -1,9 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashSet};
 
 use crate::common::ast::core::NamedVar;
-use crate::common::ast::expr::Expr;
 use crate::common::ast::judgement::Judgment;
-use crate::common::ast::r#type::{PolyTypeEnv, Scheme, Type, TypeVar};
+use crate::common::ast::r#type::{Scheme, Type};
 use crate::parser::environment::traits::EnvironmentParser;
 use crate::parser::primitive::states::TypeVarState;
 use crate::{build_expression_parser, build_type_parser};
