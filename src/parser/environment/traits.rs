@@ -1,4 +1,4 @@
-use crate::{common::{ast::{core::{NamedVar, NamelessVar, Variable}, expr::Expr, r#type::{Type}, value::Value}, tokenizer::Token}, parser::{primitive::traits::{ParseableVariable, VariableParsing}, BaseParser, TypeParser, ValueParser}};
+use crate::{common::{ast::{core::{NamedVar, NamelessVar, Variable}, expr::Expr, r#type::{Scheme, Type}, value::Value}, tokenizer::Token}, parser::{primitive::{states::TypeParsingStrategy, traits::{ParseableVariable, VariableParsing}, HasState, State, TypeVarState}, BaseParser, TypeParser, ValueParser}};
 
 pub trait ParseMeta {
     fn separator() -> Option<Token> {
@@ -13,6 +13,12 @@ impl<V: Variable> ParseMeta for Value<V> {
 }
 
 impl<V: Variable> ParseMeta for Type<V> {
+    fn separator() -> Option<Token> {
+        Some(Token::Colon)
+    }
+}
+
+impl<V: Variable> ParseMeta for Scheme<V> {
     fn separator() -> Option<Token> {
         Some(Token::Colon)
     }
@@ -42,6 +48,69 @@ where
     }
 }
 
+impl<P, V> ItemParser<V, Scheme<V>> for P
+where
+    P: TypeParser<V> + BaseParser<V = V> + HasState<TypeVarState> + ?Sized,
+    V: Variable,
+{
+    fn parse_item(&mut self) -> Result<Scheme<V>, String> {
+        let initial_pos = self.core().pos();
+        let mut potential_var_names = vec![];
+        while let Some(Token::TypeVar(name)) = self.core().peek().cloned() {
+            potential_var_names.push(name);
+            self.core().advance();
+        }
+
+        if !potential_var_names.is_empty() && self.core().peek() == Some(&Token::Dot) {
+            self.core().advance();
+            let mut quantified_vars = vec![];
+            for name in potential_var_names {
+                let tv = self.state_mut().resolve_var(&name);
+                quantified_vars.push(tv);
+            }
+            let ty = self.parse_type()?;
+            Ok(Scheme(Type::Scheme(Box::new(quantified_vars), Box::new(ty))))
+        } else {
+            self.core().initial(initial_pos);
+            Ok(Scheme(self.parse_type()?))
+        }
+    }
+}
+
+pub trait SchemeParser<V: Variable>: TypeParser<V> {
+    fn parse_scheme_or_mono_type(&mut self) -> Result<Type<V>, String>;
+}
+
+impl<P, V> SchemeParser<V> for P
+where
+    P: TypeParser<V> + BaseParser<V = V> + HasState<TypeVarState> + ?Sized,
+    V: Variable,
+{
+    fn parse_scheme_or_mono_type(&mut self) -> Result<Type<V>, String> {
+        let initial_pos = self.core().pos();
+        let mut potential_var_names = vec![];
+        while let Some(Token::TypeVar(name)) = self.core().peek().cloned() {
+            potential_var_names.push(name);
+            self.core().advance();
+        }
+
+        if !potential_var_names.is_empty() && self.core().peek() == Some(&Token::Dot) {
+            self.core().advance(); // Consume '.'
+            let mut quantified_vars = vec![];
+            for name in potential_var_names {
+                let tv = self.state_mut().resolve_var(&name);
+                quantified_vars.push(tv);
+            }
+            let ty = self.parse_type()?;
+            Ok(Type::Scheme(Box::new(quantified_vars), Box::new(ty)))
+        } else {
+            self.core().initial(initial_pos);
+            self.parse_type()
+        }
+    }
+}
+
+
 pub trait EnvironmentParser<V, T>: BaseParser<V = V>
 where V: Variable{
     fn parse_env_list(&mut self) -> Result<Vec<(V, T)>, String>;
@@ -64,8 +133,6 @@ pub trait EnvironmentParsingStrategy<V: Variable + ParseableVariable, T> {
         P: BaseParser<V = V> + ItemParser<V, T> + VariableParsing<Expr<V>> + ?Sized;
 }
 
-/// Implementation for NamedVar.
-/// It no longer calls `parse_value` directly. Instead, it uses the generic `parse_item`.
 impl<T: ParseMeta> EnvironmentParsingStrategy<NamedVar, T> for NamedVar {
     fn parse_env<P>(parser: &mut P) -> Result<Vec<(NamedVar, T)>, String>
     where
@@ -82,7 +149,6 @@ impl<T: ParseMeta> EnvironmentParsingStrategy<NamedVar, T> for NamedVar {
             let var = parser.parse()?.into_variable().ok_or("Expected a variable name.")?;
             parser.core().expect(separator.clone())?;
             
-            // **The crucial change**: calls the generic `parse_item` method.
             let item = parser.parse_item()?;
             bindings.push((var, item));
 
@@ -107,7 +173,6 @@ impl<T> EnvironmentParsingStrategy<NamelessVar, T> for NamelessVar {
         }
 
         loop {
-            // **The crucial change**: calls the generic `parse_item` method.
             let item = parser.parse_item()?;
             items.push(item);
 

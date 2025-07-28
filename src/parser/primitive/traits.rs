@@ -1,5 +1,6 @@
-use crate::{common::{ast::{core::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op}, r#type::Type}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, BaseParser}};
+use std::{any::Any, collections::{HashMap, HashSet}};
 
+use crate::{common::{ast::{core::{DBIndex, FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, FromVar, NamedVar, NamelessVar, Op, Variable}, r#type::{Type, TypeVar}}, tokenizer::Token}, parser::{delegate::{ParseTarget, ParserDelegate}, primitive::states::{HasState, TypeVarState}, BaseParser}};
 
 /// Primitive Parsing Traits
 pub trait IntParsing<Output: FromInt> : BaseParser {
@@ -161,5 +162,25 @@ where
         self.core().expect(Token::RParen)?;
 
         Ok(Output::from_group(inner_item))
+    }
+}
+
+pub trait TypeVarParsing<V>: BaseParser<V = V>
+where
+    Self: HasState<TypeVarState>,
+    V: Variable,
+{
+    fn check(token: &Token) -> bool {
+        matches!(token, Token::TypeVar(_))
+    }
+
+    fn parse(&mut self) -> Result<Type<V>, String> {
+        if let Some(Token::TypeVar(name)) = self.core().peek().cloned() {
+            self.core().advance();
+            let tv = self.state_mut().resolve_var(&name);
+            Ok(Type::Var(tv))
+        } else {
+            Err("Expected a type variable.".to_string())
+        }
     }
 }

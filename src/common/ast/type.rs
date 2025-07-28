@@ -4,7 +4,6 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::fmt::{self, Debug};
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type<V: Variable> {
     Int,
@@ -18,11 +17,8 @@ pub enum Type<V: Variable> {
     Scheme(Box<Vec<TypeVar>>, Box<Type<V>>)
 }
 
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct TyScheme<V: Variable> {
-//     pub vars: Vec<TypeVar>,
-//     pub ty: Type<V>,
-// }
+#[derive(Debug, Clone, PartialEq)]
+pub struct Scheme<V: Variable>(pub Type<V>);
 
 #[derive(Debug, Clone)]
 pub struct TypeVar {
@@ -58,7 +54,7 @@ impl Hash for TypeVar {
 
 impl fmt::Display for TypeVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "'{}", self.name)
     }
 }
 
@@ -108,20 +104,6 @@ impl<V: Variable> fmt::Display for Type<V> {
     }
 }
 
-// impl<V: Variable> fmt::Display for TyScheme<V> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         if self.vars.is_empty() {
-//             write!(f, "{}", self.ty)
-//         } else {
-//             let mut sorted_vars = self.vars.clone();
-//             sorted_vars.sort_by(|a, b| a.name.cmp(&b.name));
-
-//             let vars_str = sorted_vars.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
-//             write!(f, "{}. {}", vars_str, self.ty)
-//         }
-//     }
-// }
-
 impl<V: Variable> Type<V> {
     pub fn free_type_vars(&self) -> HashSet<TypeVar> {
         let mut ftv = HashSet::new();
@@ -131,13 +113,29 @@ impl<V: Variable> Type<V> {
 
     fn collect_ftv(&self, ftv: &mut HashSet<TypeVar>) {
         match self {
-            Type::Var(tv) => { ftv.insert(tv.clone()); }
-            Type::Fun(t1, t2) => {
+            Type::Var(tv) => {
+                ftv.insert(tv.clone());
+            }
+            Type::Fun(t1, t2) | Type::BinOp(t1, _, t2) => {
                 t1.collect_ftv(ftv);
                 t2.collect_ftv(ftv);
             }
-            Type::List(t) => t.collect_ftv(ftv),
-            _ => {}
+            Type::List(t) | Type::Group(t) => {
+                t.collect_ftv(ftv);
+            }
+            Type::Scheme(quantified_vars, inner_ty) => {
+                // This is the most important rule:
+                // First, find all free variables in the inner type.
+                let mut inner_free_vars = inner_ty.free_type_vars();
+                // Then, subtract the variables that are bound by this scheme's quantifier.
+                for var in &**quantified_vars {
+                    inner_free_vars.remove(var);
+                }
+                // Add the remaining free variables to the final set.
+                ftv.extend(inner_free_vars);
+            }
+
+            Type::Int | Type::Bool | Type::SS(_) => {}
         }
     }
 }

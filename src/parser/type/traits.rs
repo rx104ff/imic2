@@ -31,27 +31,3 @@ where V: Variable {
         Ok(Type::List(Box::new(ty)))
     }
 }
-
-pub trait TypeVarParsing<V>: TypeParser<V>
-where V: Variable {
-    fn check(token: &Token) -> bool {
-        matches!(token, Token::TypeVar(_))
-    }
-    fn parse(&mut self) -> Result<Type<V>, String>;
-}
-
-// pub trait TypeVarParsing: BaseParser {
-//     fn check(token: &Token) -> bool {
-//         matches!(token, Token::TypeVar(_))
-//     }
-
-//     fn parse(&mut self) -> Result<Type, String> {
-//         if let Some(Token::TypeVar(name)) = self.core().peek().cloned() {
-//             self.core().advance();
-//             let tv = self.get_or_create_parser_var(name);
-//             Ok(Type::Var(tv))
-//         } else {
-//             Err("Expected a type variable.".to_string())
-//         }
-//     }
-// }

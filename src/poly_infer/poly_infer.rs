@@ -6,7 +6,6 @@ use crate::common::ast::r#type::{PolyTypeEnv, Type, TypeVar};
 use crate::poly_infer::proof::Derivation;
 use crate::common::unifier::{unify, apply_sub, Substitution};
 
-// The context for inference, holding substitutions.
 struct InferContext {
     sub: Substitution,
     var_counter: usize,
@@ -17,13 +16,12 @@ impl InferContext {
     fn new_type_var(&mut self) -> Type<NamedVar> {
         let mut name_id = 0;
         loop {
-            let name = format!("'{}", ((name_id % 26) as u8 + b'a') as char);
+            let name = format!("{}", ((name_id % 26) as u8 + b'a') as char);
             if !self.used_names.contains(&name) {
                 self.used_names.insert(name.clone());
                 let id = self.var_counter;
                 self.var_counter += 1;
                 // Use a large offset to ensure inferrer IDs do not collide with parser IDs.
-                print!("{}", name);
                 return Type::Var(TypeVar { id: id + 1000, name });
             }
             name_id += 1;
@@ -73,6 +71,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             rule: "T-Nil".to_string(), premises: vec![],
         }),
         Expr::Var(var) => {
+            // Search the environment from most recent to oldest binding.
             for (v, scheme) in env.iter().rev() {
                 if v == var {
                     // When using a variable, we instantiate its type scheme
@@ -92,12 +91,12 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
         Expr::Fun(param, body) => {
             let param_ty = ctx.new_type_var();
             let mut new_env = env.clone();
-            // In a `fun`, the parameter is monomorphic (not a `forall` type).
-            new_env.push((param.clone(), Type::Scheme(Box::new( vec![]), Box::new(param_ty.clone()))));
+            // In a `fun`, the parameter is monomorphic. It is not a scheme.
+            new_env.push((param.clone(), param_ty.clone()));
             
             let body_deriv = infer_expr(ctx, &new_env, body)?;
             
-            let fun_ty = Type::Fun(Box::new(apply_sub(&param_ty, &ctx.sub)), Box::new(body_deriv.ty.clone()));
+            let fun_ty = Type::BinOp(Box::new(apply_sub(&param_ty, &ctx.sub)), Op::Fun, Box::new(body_deriv.ty.clone()));
             
             Ok(Derivation {
                 env: env.clone(), expr: e.clone(), ty: fun_ty,
@@ -111,12 +110,15 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             let t2 = apply_sub(&d2.ty, &ctx.sub);
 
             let return_ty = ctx.new_type_var();
-            let fun_ty = Type::Fun(Box::new(t2), Box::new(return_ty.clone()));
+            let fun_ty = Type::BinOp(Box::new(t2), Op::Fun, Box::new(return_ty.clone()));
             
             ctx.sub = unify(&t1, &fun_ty, &ctx.sub)?;
             
+            // The final type of the expression is the return type after applying the new substitution.
+            let final_type = apply_sub(&return_ty, &ctx.sub);
+            
             Ok(Derivation {
-                env: env.clone(), expr: e.clone(), ty: return_ty,
+                env: env.clone(), expr: e.clone(), ty: final_type,
                 rule: "T-App".to_string(), premises: vec![d1, d2],
             })
         }
@@ -142,24 +144,27 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             let d_then = infer_expr(ctx, env, then_branch)?;
             let d_else = infer_expr(ctx, env, else_branch)?;
             ctx.sub = unify(&d_then.ty, &d_else.ty, &ctx.sub)?;
+            let final_type = apply_sub(&d_then.ty, &ctx.sub);
             Ok(Derivation {
-                env: env.clone(), expr: e.clone(), ty: d_then.ty.clone(),
+                env: env.clone(), expr: e.clone(), ty: final_type,
                 rule: "T-If".to_string(), premises: vec![d_cond, d_then, d_else],
             })
         }
         Expr::LetRec(f, x, e1, e2) => {
             let t1 = ctx.new_type_var();
             let t2 = ctx.new_type_var();
-            let fun_ty = Type::Fun(Box::new(t1.clone()), Box::new(t2.clone()));
+            let fun_ty = Type::BinOp(Box::new(t1.clone()), Op::Fun, Box::new(t2.clone()));
 
             let mut new_env1 = env.clone();
-            new_env1.push((f.clone(), Type::Scheme(Box::new(vec![]), Box::new(fun_ty.clone()))));
-            new_env1.push((x.clone(), Type::Scheme(Box::new(vec![]), Box::new(t1.clone()))));
+            // The function and its parameter are assumed to be monomorphic inside the function body.
+            new_env1.push((f.clone(), fun_ty.clone()));
+            new_env1.push((x.clone(), t1.clone()));
 
             let d1 = infer_expr(ctx, &new_env1, e1)?;
             ctx.sub = unify(&d1.ty, &t2, &ctx.sub)?;
 
             let mut new_env2 = env.clone();
+            // The function type is generalized before being added to the environment for the `in` part.
             new_env2.push((f.clone(), generalize(env, &fun_ty, &ctx.sub)));
             
             let d2 = infer_expr(ctx, &new_env2, e2)?;
@@ -176,7 +181,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             
             if let Op::App = op {
                 let return_ty = ctx.new_type_var();
-                let fun_ty = Type::Fun(Box::new(t2), Box::new(return_ty.clone()));
+                let fun_ty = Type::BinOp(Box::new(t2), Op::Fun, Box::new(return_ty.clone()));
                 
                 ctx.sub = unify(&t1, &fun_ty, &ctx.sub)?;
                 
@@ -197,7 +202,7 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
                 Op::Lt => (Type::Int, Type::Int, Type::Bool, "T-Lt"),
                 Op::Cons => {
                     let elem_type = ctx.new_type_var();
-                    (elem_type.clone(), Type::List(Box::new(elem_type)), t2.clone(), "T-Cons")
+                    (elem_type.clone(), Type::List(Box::new(elem_type.clone())), Type::List(Box::new(elem_type)), "T-Cons")
                 },
                 _ => return Err(format!("Unhandled operator: {:?}", op)),
             };
@@ -227,15 +232,17 @@ fn infer_expr(ctx: &mut InferContext, env: &PolyTypeEnv, e: &NamedExpr) -> Resul
             let t_nil = apply_sub(&d2.ty, &ctx.sub);
 
             let mut new_env = env.clone();
-            new_env.push((x.clone(), Type::Scheme(Box::new(vec![]), Box::new(elem_ty.clone()))));
-            new_env.push((y.clone(), Type::Scheme(Box::new(vec![]), Box::new(list_ty.clone()))));
+            // The head and tail of the list are monomorphic in the `cons` branch.
+            new_env.push((x.clone(), elem_ty.clone()));
+            new_env.push((y.clone(), list_ty.clone()));
 
             let d3 = infer_expr(ctx, &new_env, e3)?;
             let t_cons = apply_sub(&d3.ty, &ctx.sub);
 
             ctx.sub = unify(&t_nil, &t_cons, &ctx.sub)?;
+            let final_type = apply_sub(&t_nil, &ctx.sub);
             Ok(Derivation {
-                env: env.clone(), expr: e.clone(), ty: t_nil,
+                env: env.clone(), expr: e.clone(), ty: final_type,
                 rule: "T-Match".to_string(), premises: vec![d1, d2, d3],
             })
         }
@@ -284,19 +291,14 @@ fn apply_sub_to_env(env: &PolyTypeEnv, sub: &Substitution) -> PolyTypeEnv {
         .map(|(var_name, original_type)| {
             // Match on the type found in the environment.
             let new_type = match original_type {
-                // --- Case 1: The type is a Scheme ---
                 Type::Scheme(quantified_vars, inner_ty) => {
-                    // We must not substitute the variables that are quantified by the scheme.
-                    // For example, in `(forall a. a -> b)`, we should not substitute `a`.
                     let mut temp_sub = sub.clone();
                     for quantified_var in &**quantified_vars { // Dereference the Box to iterate
                         temp_sub.remove(quantified_var);
                     }
                     
-                    // Apply the filtered substitution to the inner type.
                     let new_inner_ty = apply_sub(inner_ty, &temp_sub);
 
-                    // Reconstruct the scheme with the original quantified variables and the new inner type.
                     Type::Scheme(quantified_vars.clone(), Box::new(new_inner_ty))
                 }
                 

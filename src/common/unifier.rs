@@ -32,13 +32,16 @@ pub fn unify(t1: &Type<NamedVar>, t2: &Type<NamedVar>, sub: &Substitution) -> Re
         (Type::List(t1_inner), Type::List(t2_inner)) => {
             unify(t1_inner.as_ref(), t2_inner.as_ref(), sub)
         }
+        (Type::Scheme { .. }, _) | (_, Type::Scheme { .. }) => {
+            Err("Internal Compiler Error: Attempted to unify a polymorphic type scheme. \
+                 All schemes must be instantiated before unification.".to_string())
+        }
         (t1, t2) => Err(format!("Type mismatch: cannot unify {:?} with {:?}", t1, t2)),
     }
 }
 
 /// Unifies a variable with a type, performing the crucial "occurs check".
 fn unify_variable(tv: &TypeVar, t: &Type<NamedVar>, sub: &Substitution) -> Result<Substitution, String> {
-    // If the variable is already in the substitution, we work with its concrete type.
     if let Type::Var(tv2) = t {
         if tv.id == tv2.id {
             return Ok(sub.clone());
@@ -49,10 +52,11 @@ fn unify_variable(tv: &TypeVar, t: &Type<NamedVar>, sub: &Substitution) -> Resul
         new_sub.insert(from.clone(), Type::Var(to.clone()));
         return Ok(new_sub);
     }
-    
+
     if occurs(tv, t, sub) {
-        return Err(format!("Recursive type detected: {} occurs in {}", tv, t));
+        return Err(format!("Recursive type detected: {:?} occurs in {:?}", tv, t));
     }
+    // The variable is not bound and does not occur, so create a new binding.
     let mut new_sub = sub.clone();
     new_sub.insert(tv.clone(), t.clone());
     Ok(new_sub)
@@ -70,6 +74,13 @@ pub fn apply_sub(t: &Type<NamedVar>, sub: &Substitution) -> Type<NamedVar> {
         ),
         Type::List(t) => Type::List(Box::new(apply_sub(t, sub))),
         Type::Group(t_inner) => Type::Group(Box::new(apply_sub(t_inner, sub))),
+        Type::Scheme(vars, ty) => {
+            let mut temp_sub = sub.clone();
+            for var in &**vars {
+                temp_sub.remove(var);
+            }
+            Type::Scheme(vars.clone(), Box::new(apply_sub(ty, &temp_sub)))
+        }
         _ => t.clone(),
     }
 }
@@ -87,6 +98,13 @@ fn occurs(tv: &TypeVar, t: &Type<NamedVar>, sub: &Substitution) -> bool {
         Type::BinOp(p, _, r) => occurs(tv, p, sub) || occurs(tv, r, sub),
         Type::List(t) => occurs(tv, t, sub),
         Type::Group(t_inner) => occurs(tv, t_inner, sub),
+        Type::Scheme (vars, ty ) => {
+            if vars.contains(tv) {
+                false
+            } else {
+                occurs(tv, ty, sub)
+            }
+        }
         _ => false,
     }
 }
