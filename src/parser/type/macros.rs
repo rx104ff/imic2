@@ -10,9 +10,8 @@ macro_rules! build_type_parser {
             $( { base: $stateful_primitive:ident, state_type: $required_state:ty } ),*
         ])?
     ) => {
-                paste::paste! {
+            paste::paste! {
             pub mod [<$parser_struct:lower _type_impl>] {
-                //use super::*; // Import types from the parent module.
                 pub fn initialize_states() -> std::collections::HashMap<std::any::TypeId, Box<dyn $crate::parser::primitive::State>> {
                     #[allow(unused_mut)]
                     let mut states: std::collections::HashMap<std::any::TypeId, Box<dyn $crate::parser::primitive::State>> = std::collections::HashMap::new();
@@ -84,12 +83,12 @@ macro_rules! __internal_build_type_parser_logic {
         $(stateful_primitives = [ $( $stateful_primitive:ident ),* ],)?
         postfix_parsers = [ $( $postfix_trait:ident ),* ],
         chain = [
-            { $first_current:ident $(, $rest_current:ident)* }, // Current level
-            { $next_level:ident $(, $rest_next:ident)* }       // Next level
-            $(, $tail:tt )* // The rest
+            { $first_current:ident $(, $rest_current:ident)* },
+            { $next_level:ident $(, $rest_next:ident)* }
+            $(, $tail:tt )* 
         ]
     ) => {
-        // Implement the traits for the current precedence level.
+
         impl crate::parser::r#type::traits::$first_current<$var> for $parser_struct {}
         $( 
             impl crate::parser::r#type::traits::$rest_current<$var> for $parser_struct {} 
