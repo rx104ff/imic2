@@ -72,6 +72,12 @@ impl fmt::Display for NamelessVar {
     }
 }
 
+pub trait IsNameless: Variable {}
+pub trait IsNamed: Variable {}
+
+impl IsNameless for NamelessVar {}
+impl IsNamed for NamedVar{}
+
 pub trait FromInt {
     fn from_int(n: i64) -> Self;
 }

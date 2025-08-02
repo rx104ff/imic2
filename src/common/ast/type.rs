@@ -1,4 +1,5 @@
 use crate::common::ast::core::{FromGroup, NamedVar, Op, Variable};
+use crate::common::ast::env::Env;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
@@ -140,9 +141,9 @@ impl<V: Variable> Type<V> {
     }
 }
 
-pub type MonoTypeEnv = Vec<(NamedVar, Type<NamedVar>)>;
+pub type MonoTypeEnv = Env<NamedVar, Type<NamedVar>>;
 
-pub type PolyTypeEnv = Vec<(NamedVar, Type<NamedVar>)>;
+pub type PolyTypeEnv = Env<NamedVar, Type<NamedVar>>;
 
 impl<V: Variable> FromGroup for Type<V> {
     fn from_group(inner: Self) -> Self {

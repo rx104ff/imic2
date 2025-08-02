@@ -1,6 +1,7 @@
 use std::collections::{HashSet};
 
 use crate::common::ast::core::NamedVar;
+use crate::common::ast::env::Env;
 use crate::common::ast::judgement::Judgment;
 use crate::common::ast::r#type::{Scheme, Type};
 use crate::parser::environment::traits::EnvironmentParser;
@@ -86,12 +87,12 @@ impl Parser {
     /// It parses a judgment of the form `env |- expr : type`
     /// and returns the parsed Judgment struct.
     pub fn parse(&mut self) -> Result<(Judgment, HashSet<String>), String> {
-        let env_with_schemes: Vec<(NamedVar, Scheme<NamedVar>)> =
+        let env_with_schemes: Env<NamedVar, Scheme<NamedVar>> =
             <Self as EnvironmentParser<NamedVar, Scheme<NamedVar>>>::parse_env_list(self)?;
 
-        let env: Vec<(NamedVar, Type<NamedVar>)> = env_with_schemes
-            .into_iter()
-            .map(|(var, scheme)| (var, scheme.0))
+        let env: Env<NamedVar, Type<NamedVar>> = env_with_schemes
+            .iter()
+            .map(|(var, scheme)| (var.clone(), scheme.0.clone()))
             .collect();
 
         self.core.expect(Token::Turnstile)?;

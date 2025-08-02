@@ -1,4 +1,4 @@
-use crate::common::ast::{core::{ArithmeticOp, NamedVar, ReductionType}, expr::{Expr, NamedExpr, NamelessExpr}, nat::Nat, r#type::{MonoTypeEnv, PolyTypeEnv, Type}, value::{NamedEnv, NamelessEnv}};
+use crate::common::ast::{core::{ArithmeticOp, NamedVar, ReductionType}, env::{NamedEnv, NamelessEnv}, expr::{Expr, NamedExpr, NamelessExpr}, nat::Nat, r#type::{MonoTypeEnv, PolyTypeEnv, Type}, value::{NamedValue, NamelessValue}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Judgment {
@@ -15,10 +15,10 @@ pub enum Judgment {
     // For Nat reduction
     Reduction { r_type: ReductionType, e1: NamedExpr, e2: NamedExpr },
 
-    NamelessEvaluation (NamelessEnv, NamelessExpr),
+    NamelessEvaluation (NamelessEnv<NamelessValue>, NamelessExpr),
     
     // For ML evaluation
-    EvaluatesTo(NamedEnv, NamedExpr), // Assuming Type can also represent ML values
+    EvaluatesTo(NamedEnv<NamedValue>, NamedExpr), // Assuming Type can also represent ML values
     
     // For Type Checking
     Infer(MonoTypeEnv, NamedExpr, Type<NamedVar>),

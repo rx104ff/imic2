@@ -1,0 +1,6 @@
+---
+source: tests/nameless_eval_tests.rs
+assertion_line: 55
+expression: "&result"
+---
+Evaluation Error: Invalid operands for binary operator App

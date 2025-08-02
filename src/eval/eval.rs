@@ -1,483 +1,475 @@
-// src/ml4.rs
+// // src/ml4.rs
 
-use crate::common::ast::core::{NamedVar, Op};
-use crate::common::ast::expr::{Expr, NamedExpr};
-use crate::common::ast::judgement::Judgment;
-use crate::common::ast::value::{NamedEnv, Value};
-use crate::eval::version::{LanguageVersion};
-use crate::eval::proof::{Derivation, Axiom};
+// use crate::common::ast::core::{NamedVar, Op};
+// use crate::common::ast::env::{Env, NamedEnv};
+// use crate::common::ast::expr::{Expr, NamedExpr};
+// use crate::common::ast::judgement::Judgment;
+// use crate::common::ast::value::{NamedValue, Value};
+// use crate::common::proof::{Derivation, JudgmentStyle};
+// use crate::eval::version::{LanguageVersion};
+// // use crate::eval::proof::{Derivation, Axiom};
 
-use std::fmt;
+
+// use std::fmt;
+
+// pub trait Axiom {
+//     fn to_axiom_string(&self) -> Option<String>;
+// }
+
+// // We need to implement the styling traits for our evaluation judgment.
+// impl JudgmentStyle for Value<NamedVar> {
+//     fn binding_separator(&self) -> &'static str { "=" }
+//     fn judgment_verb(&self) -> &'static str { "evalto" }
+//     fn axiom_verb(&self) -> &'static str { "is" }
+// }
+
+// impl Axiom for Derivation<Judgment> {
+//     fn to_axiom_string(&self) -> Option<String> {
+//         if !self.rule.starts_with("B-") {
+//             return None;
+//         }
+        
+//         // Extract info from the judgment field
+//         if let Judgment::EvaluatesTo(env, expr) = &self.judgment {
+//              if let Expr::BinOp(lhs_expr, op, rhs_expr) = &expr {
+//                 let lhs_val:Value<NamedVar> = match &**lhs_expr {
+//                     Expr::Int(n) => Value::Int(*n),
+//                     _ => return None,
+//                 };
+//                 let rhs_val:Value<NamedVar> = match &**rhs_expr {
+//                     Expr::Int(n) => Value::Int(*n),
+//                     _ => return None,
+//                 };
+
+//                 let op_word = match op {
+//                     Op::Add => "plus",
+//                     Op::Sub => "minus",
+//                     Op::Mul => "times",
+//                     Op::Lt => "less than",
+//                     Op::Cons => "cons",
+//                     _ => "",
+//                 };
+
+//                 // The result must be inferred from the expression since it's not directly in the axiom judgment
+//                 let result: Value<NamedVar> = match (lhs_val.clone(), rhs_val.clone(), op) {
+//                     (Value::Int(i1), Value::Int(i2), Op::Add) => Value::Int(i1 + i2),
+//                     (Value::Int(i1), Value::Int(i2), Op::Sub) => Value::Int(i1 - i2),
+//                     (Value::Int(i1), Value::Int(i2), Op::Mul) => Value::Int(i1 * i2),
+//                     (Value::Int(i1), Value::Int(i2), Op::Lt) => Value::Bool(i1 < i2),
+//                     _ => return None,
+//                 };
 
 
-impl Derivation {
-        fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent_level: usize) -> fmt::Result {
-        let indent_str = "    ".repeat(indent_level);
+//                 return Some(format!(
+//                     "{} {} {} is {} by {} {{}};",
+//                     lhs_val,
+//                     op_word,
+//                     rhs_val,
+//                     result,
+//                     self.rule
+//                 ));
+//             }
+//         }
 
-        if let Some(ax_str) = self.to_axiom_string() {
-            writeln!(f, "{}{}", indent_str, ax_str)?;
-            return Ok(());
-        }
+//         None
+//     }
+// }
 
-        writeln!(
-            f,
-            "{}{}{} evalto {} by {} {{",
-            indent_str,
-            format_env(&self.env, self.version),
-            self.expr,
-            self.result,
-            self.rule
-        )?;
+// fn format_env(env: &NamedEnv<NamedValue>, version: LanguageVersion) -> String {
+//     if version == LanguageVersion::ML1 {
+//         return String::new();
+//     }
 
-        for sub in &self.sub_derivations {
-            sub.fmt_with_indent(f, indent_level + 1)?;
-        }
+//     if env.is_empty() {
+//         String::from("|- ")
+//     } else {
+//         let binds = env
+//             .iter()
+//             .map(|(v, val)| format!("{} = {}", v.0, val))
+//             .collect::<Vec<_>>()
+//             .join(", ");
+//         format!("{} |- ", binds)
+//     }
+// }
 
-        writeln!(f, "{}}};", indent_str)
-    }
-}
+// pub fn derive_judgement(judgment: &Judgment, version: LanguageVersion) -> Result<Derivation<Judgment>, String> {
+//     //println!("21312");
+//     //println!("{}", judgment);
+//     match judgment {
+//         Judgment::EvaluatesTo(env, expr) => {
+//             derive(env, expr, version)
+//         },
+//         _ => Err("This judgment type is not supported by the type checker.".to_string()),
+//     }
+// }
 
-impl fmt::Display for Derivation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.fmt_with_indent(f, 0)
-    }
-}
-
-impl Axiom for Derivation {
-    fn to_axiom_string(&self) -> Option<String> {
-        if !self.rule.starts_with("B-") {
-            return None;
-        }
-
-        if let Expr::BinOp(lhs_expr, op, rhs_expr) = &self.expr {
-            let lhs_val:Value<NamedVar> = match &**lhs_expr {
-                Expr::Int(n) => Value::Int(*n),
-                _ => return None,
-            };
-            let rhs_val:Value<NamedVar> = match &**rhs_expr {
-                Expr::Int(n) => Value::Int(*n),
-                _ => return None,
-            };
-
-            let op_word = match op {
-                Op::Add => "plus",
-                Op::Sub => "minus",
-                Op::Mul => "times",
-                Op::Lt => "less than",
-                Op::Cons => "cons",
-                Op::App => "",
-                _ => ""
-            };
-
-            return Some(format!(
-                "{} {} {} is {} by {} {{}};",
-                lhs_val,
-                op_word,
-                rhs_val,
-                self.result,
-                self.rule
-            ));
-        }
-
-        None
-    }
-}
-
-fn format_env(env: &NamedEnv, version: LanguageVersion) -> String {
-    if version == LanguageVersion::ML1 {
-        return String::new();
-    }
-
-    if env.is_empty() {
-        String::from("|- ")
-    } else {
-        let binds = env
-            .iter()
-            .map(|(v, val)| format!("{} = {}", v.0, val))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("{} |- ", binds)
-    }
-}
-
-pub fn derive_judgement(judgment: &Judgment, version: LanguageVersion) -> Result<Derivation, String> {
-    //println!("21312");
-    //println!("{}", judgment);
-    match judgment {
-        Judgment::EvaluatesTo(env, expr) => {
-            derive(env, expr, version)
-        },
-        _ => Err("This judgment type is not supported by the type checker.".to_string()),
-    }
-}
-
-pub fn derive(env: &NamedEnv, expr: &NamedExpr, version: LanguageVersion) -> Result<Derivation, String> {
-    //println!("{}", expr);
-    match expr {
-        Expr::Int(i) => Ok(Derivation {
-            env: env.clone(),
-            expr: expr.clone(),
-            result: Value::Int(*i),
-            rule: "E-Int".to_string(),
-            sub_derivations: vec![],
-            version,
-        }),
-        Expr::Bool(b) => Ok(Derivation {
-            env: env.clone(),
-            expr: expr.clone(),
-            result: Value::Bool(*b),
-            rule: "E-Bool".to_string(),
-            sub_derivations: vec![],
-            version,
-        }),
-        Expr::Var(x) => match version {
-            LanguageVersion::ML1 => {
-                panic!("Error: Variables are not supported in ML1 (found: {})", x.0);
-            }
-            LanguageVersion::ML2 | LanguageVersion::ML3 => {
-                fn derive_var_recursive(env: &NamedEnv, current_expr: &NamedExpr, x: &NamedVar, version: LanguageVersion) -> Derivation {
-                    if env.is_empty() {
-                        panic!("Unbound variable: {}", x);
-                    }
-                    let last_index = env.len() - 1;
-                    let (last_var, last_val) = &env[last_index];
-                    if last_var == x {
-                        Derivation {
-                            env: env.clone(),
-                            expr: current_expr.clone(),
-                            result: last_val.clone(),
-                            rule: "E-Var1".to_string(),
-                            sub_derivations: vec![],
-                            version,
-                        }
-                    } else {
-                        let sub_env = env[..last_index].to_vec();
-                        let sub_derivation = derive_var_recursive(&sub_env, current_expr, x, version);
-                        Derivation {
-                            env: env.clone(),
-                            expr: current_expr.clone(),
-                            result: sub_derivation.result.clone(),
-                            rule: "E-Var2".to_string(),
-                            sub_derivations: vec![sub_derivation],
-                            version,
-                        }
-                    }
-                }
-                Ok(derive_var_recursive(env, expr, x, version))
-            }
+// pub fn derive(env: &NamedEnv<NamedValue>, expr: &NamedExpr, version: LanguageVersion) -> Result<Derivation<Judgment>, String> {
+//     //println!("{}", expr);
+//     match expr {
+//         Expr::Int(i) => Ok(Derivation<Judgment> {
+//             env: env.clone(),
+//             expr: expr.clone(),
+//             result: Value::Int(*i),
+//             rule: "E-Int".to_string(),
+//             sub_derivations: vec![],
+//             version,
+//         }),
+//         Expr::Bool(b) => Ok(Derivation {
+//             env: env.clone(),
+//             expr: expr.clone(),
+//             result: Value::Bool(*b),
+//             rule: "E-Bool".to_string(),
+//             sub_derivations: vec![],
+//             version,
+//         }),
+//         Expr::Var(x) => match version {
+//             LanguageVersion::ML1 => {
+//                 panic!("Error: Variables are not supported in ML1 (found: {})", x.0);
+//             }
+//             LanguageVersion::ML2 | LanguageVersion::ML3 => {
+//                 fn derive_var_recursive(env: &NamedEnv<NamedValue>, current_expr: &NamedExpr, x: &NamedVar, version: LanguageVersion) -> Derivation {
+//                     if env.is_empty() {
+//                         panic!("Unbound variable: {}", x);
+//                     }
+//                     let last_index = env.len() - 1;
+//                     let (last_var, last_val) = &env[last_index];
+//                     if last_var == x {
+//                         Derivation {
+//                             env: env.clone(),
+//                             expr: current_expr.clone(),
+//                             result: last_val.clone(),
+//                             rule: "E-Var1".to_string(),
+//                             sub_derivations: vec![],
+//                             version,
+//                         }
+//                     } else {
+//                         let sub_env = env[..last_index].to_vec();
+//                         let sub_derivation = derive_var_recursive(&sub_env, current_expr, x, version);
+//                         Derivation {
+//                             env: env.clone(),
+//                             expr: current_expr.clone(),
+//                             result: sub_derivation.result.clone(),
+//                             rule: "E-Var2".to_string(),
+//                             sub_derivations: vec![sub_derivation],
+//                             version,
+//                         }
+//                     }
+//                 }
+//                 Ok(derive_var_recursive(env, expr, x, version))
+//             }
             
-            LanguageVersion::ML4 => {
-                for (v, val) in env.iter().rev() {
-                    if v == x {
-                        return Ok(Derivation {
-                            env: env.clone(),
-                            expr: expr.clone(),
-                            result: val.clone(),
-                            rule: "E-Var".to_string(),
-                            sub_derivations: vec![],
-                            version,
-                        });
-                    }
-                }
-                panic!("Unbound variable: {}", x.0)
-            }
-        },
-        Expr::Group(e) => {
-            // 1. Recursively derive the inner expression.
-            derive(env, e, version)
+//             LanguageVersion::ML4 => {
+//                 for (v, val) in env.iter().rev() {
+//                     if v == x {
+//                         return Ok(Derivation {
+//                             env: env.clone(),
+//                             expr: expr.clone(),
+//                             result: val.clone(),
+//                             rule: "E-Var".to_string(),
+//                             sub_derivations: vec![],
+//                             version,
+//                         });
+//                     }
+//                 }
+//                 panic!("Unbound variable: {}", x.0)
+//             }
+//         },
+//         Expr::Group(e) => {
+//             // 1. Recursively derive the inner expression.
+//             derive(env, e, version)
 
-        },
-        Expr::UnaryOp(op, e) => {
-            println!("{}{}", op, e);
-            if *op == Op::Sub {
-                if let Expr::Int(i) = **e {
-                    return Ok(Derivation {
-                        env: env.clone(),
-                        expr: expr.clone(),
-                        result: Value::Int(-i),
-                        rule: "E-Int".to_string(),
-                        sub_derivations: vec![],
-                        version,
-                    });
-                }
-            }
-            let d = derive(env, e, version)?;
-            match d.result {
-                Value::Int(i) => {
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: expr.clone(),
-                        result: Value::Int(-i),
-                        rule: "".to_string(),
-                        sub_derivations: vec![d],
-                        version,
-                    })
-                }
-                _ => Err(format!("Cannot apply unary minus to non-integer value: {:?}", d.result)),
-            }
-        }
-        Expr::BinOp(e1, op, e2) => {
-            //println!("{}{}{}", e1, op, e2);
-            let d1 = derive(env, e1, version)?;
-            let d2 = derive(env, e2, version)?;
+//         },
+//         Expr::UnaryOp(op, e) => {
+//             println!("{}{}", op, e);
+//             if *op == Op::Sub {
+//                 if let Expr::Int(i) = **e {
+//                     return Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: expr.clone(),
+//                         result: Value::Int(-i),
+//                         rule: "E-Int".to_string(),
+//                         sub_derivations: vec![],
+//                         version,
+//                     });
+//                 }
+//             }
+//             let d = derive(env, e, version)?;
+//             match d.result {
+//                 Value::Int(i) => {
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: expr.clone(),
+//                         result: Value::Int(-i),
+//                         rule: "".to_string(),
+//                         sub_derivations: vec![d],
+//                         version,
+//                     })
+//                 }
+//                 _ => Err(format!("Cannot apply unary minus to non-integer value: {:?}", d.result)),
+//             }
+//         }
+//         Expr::BinOp(e1, op, e2) => {
+//             //println!("{}{}{}", e1, op, e2);
+//             let d1 = derive(env, e1, version)?;
+//             let d2 = derive(env, e2, version)?;
 
-            if *op == Op::App {
-                return match &d1.result {
-                    Value::FunVal(param, body, closure_env) => {
-                        let mut new_env = (**closure_env).to_vec();
-                        new_env.push((param.clone(), d2.result.clone()));
-                        let d_body = derive(&new_env, body, version)?;
-                        Ok(Derivation {
-                            env: env.clone(),
-                            expr: expr.clone(),
-                            result: d_body.result.clone(),
-                            rule: "E-App".to_string(),
-                            sub_derivations: vec![d1, d2, d_body],
-                            version,
-                        })
-                    }
-                    Value::RecFunVal(name, param, body, closure_env) => {
-                        let mut new_env = (**closure_env).to_vec();
-                        new_env.push((name.clone(), d1.result.clone()));
-                        new_env.push((param.clone(), d2.result.clone()));
-                        let d_body = derive(&new_env, body, version)?;
-                        Ok(Derivation {
-                            env: env.clone(),
-                            expr: expr.clone(),
-                            result: d_body.result.clone(),
-                            rule: "E-AppRec".to_string(),
-                            sub_derivations: vec![d1, d2, d_body],
-                            version,
-                        })
-                    }
-                    _ => Err(format!("Tried to apply a non-function type: {:?}", d1.result)),
-                };
-            }
+//             if *op == Op::App {
+//                 return match &d1.result {
+//                     Value::FunVal(param, body, closure_env) => {
+//                         let mut new_env = closure_env.clone();
+//                         new_env.push((param.clone(), d2.result.clone()));
+//                         let d_body = derive(&new_env, body, version)?;
+//                         Ok(Derivation {
+//                             env: env.clone(),
+//                             expr: expr.clone(),
+//                             result: d_body.result.clone(),
+//                             rule: "E-App".to_string(),
+//                             sub_derivations: vec![d1, d2, d_body],
+//                             version,
+//                         })
+//                     }
+//                     Value::RecFunVal(name, param, body, closure_env) => {
+//                         let mut new_env = closure_env.clone();
+//                         new_env.push((name.clone(), d1.result.clone()));
+//                         new_env.push((param.clone(), d2.result.clone()));
+//                         let d_body = derive(&new_env, body, version)?;
+//                         Ok(Derivation {
+//                             env: env.clone(),
+//                             expr: expr.clone(),
+//                             result: d_body.result.clone(),
+//                             rule: "E-AppRec".to_string(),
+//                             sub_derivations: vec![d1, d2, d_body],
+//                             version,
+//                         })
+//                     }
+//                     _ => Err(format!("Tried to apply a non-function type: {:?}", d1.result)),
+//                 };
+//             }
 
-            let (v1, v2) = (d1.result.clone(), d2.result.clone());
+//             let (v1, v2) = (d1.result.clone(), d2.result.clone());
             
-            //println!("{}{}{}", v1, op, v2);
-            let (result, rule, basic_rule) = match (v1.clone(), v2.clone(), op) {
-                (Value::Int(i1), Value::Int(i2), Op::Add) => (
-                    Value::Int(i1 + i2),
-                    "E-Plus",
-                    Some(Derivation {
-                        env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2))),
-                        result: Value::Int(i1 + i2),
-                        rule: "B-Plus".to_string(),
-                        sub_derivations: vec![],
-                        version,
-                    }),
-                ),
-                (Value::Int(i1), Value::Int(i2), Op::Sub) => (
-                    Value::Int(i1 - i2),
-                    "E-Minus",
-                    Some(Derivation {
-                        env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2))),
-                        result: Value::Int(i1 - i2),
-                        rule: "B-Minus".to_string(),
-                        sub_derivations: vec![],
-                        version,
-                    }),
-                ),
-                (Value::Int(i1), Value::Int(i2), Op::Mul) => (
-                    Value::Int(i1 * i2),
-                    "E-Times",
-                    Some(Derivation {
-                        env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2))),
-                        result: Value::Int(i1 * i2),
-                        rule: "B-Times".to_string(),
-                        sub_derivations: vec![],
-                        version,
-                    }),
-                ),
-                (Value::Int(i1), Value::Int(i2), Op::Lt) => (
-                    Value::Bool(i1 < i2),
-                    "E-Lt",
-                    Some(Derivation {
-                        env: vec![],
-                        expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Lt, Box::new(Expr::Int(i2))),
-                        result: Value::Bool(i1 < i2),
-                        rule: "B-Lt".to_string(),
-                        sub_derivations: vec![],
-                        version,
-                    }),
-                ),
-                (v_head, v_tail, Op::Cons) => (
-                    Value::Cons(Box::new(v_head.clone()), Box::new(v_tail.clone())),
-                    "E-Cons",
-                    None,
-                ),
-                _ => panic!("Invalid binary op eval {:?} for {} {} {}", op, v1, op, v2),
-            };
+//             //println!("{}{}{}", v1, op, v2);
+//             let (result, rule, basic_rule) = match (v1.clone(), v2.clone(), op) {
+//                 (Value::Int(i1), Value::Int(i2), Op::Add) => (
+//                     Value::Int(i1 + i2),
+//                     "E-Plus",
+//                     Some(Derivation {
+//                         env: vec![],
+//                         expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Add, Box::new(Expr::Int(i2))),
+//                         result: Value::Int(i1 + i2),
+//                         rule: "B-Plus".to_string(),
+//                         sub_derivations: vec![],
+//                         version,
+//                     }),
+//                 ),
+//                 (Value::Int(i1), Value::Int(i2), Op::Sub) => (
+//                     Value::Int(i1 - i2),
+//                     "E-Minus",
+//                     Some(Derivation {
+//                         env: vec![],
+//                         expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Sub, Box::new(Expr::Int(i2))),
+//                         result: Value::Int(i1 - i2),
+//                         rule: "B-Minus".to_string(),
+//                         sub_derivations: vec![],
+//                         version,
+//                     }),
+//                 ),
+//                 (Value::Int(i1), Value::Int(i2), Op::Mul) => (
+//                     Value::Int(i1 * i2),
+//                     "E-Times",
+//                     Some(Derivation {
+//                         env: vec![],
+//                         expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Mul, Box::new(Expr::Int(i2))),
+//                         result: Value::Int(i1 * i2),
+//                         rule: "B-Times".to_string(),
+//                         sub_derivations: vec![],
+//                         version,
+//                     }),
+//                 ),
+//                 (Value::Int(i1), Value::Int(i2), Op::Lt) => (
+//                     Value::Bool(i1 < i2),
+//                     "E-Lt",
+//                     Some(Derivation {
+//                         env: vec![],
+//                         expr: Expr::BinOp(Box::new(Expr::Int(i1)), Op::Lt, Box::new(Expr::Int(i2))),
+//                         result: Value::Bool(i1 < i2),
+//                         rule: "B-Lt".to_string(),
+//                         sub_derivations: vec![],
+//                         version,
+//                     }),
+//                 ),
+//                 (v_head, v_tail, Op::Cons) => (
+//                     Value::Cons(Box::new(v_head.clone()), Box::new(v_tail.clone())),
+//                     "E-Cons",
+//                     None,
+//                 ),
+//                 _ => panic!("Invalid binary op eval {:?} for {} {} {}", op, v1, op, v2),
+//             };
 
-            let mut sub_derivations = vec![d1, d2];
-            if let Some(basic) = basic_rule {
-                sub_derivations.push(basic);
-            }
+//             let mut sub_derivations = vec![d1, d2];
+//             if let Some(basic) = basic_rule {
+//                 sub_derivations.push(basic);
+//             }
 
-            Ok(Derivation {
-                env: env.clone(),
-                expr: expr.clone(),
-                result,
-                rule: rule.to_string(),
-                sub_derivations,
-                version,
-            })
-        }
-        Expr::If(cond, e_then, e_else) => {
-            let d_cond = derive(env, cond, version)?;
-            match d_cond.result {
-                Value::Bool(true) => {
-                    let d_then = derive(env, e_then, version)?;
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: expr.clone(),
-                        result: d_then.result.clone(),
-                        rule: "E-IfT".to_string(),
-                        sub_derivations: vec![d_cond, d_then],
-                        version,
-                    })
-                }
-                Value::Bool(false) => {
-                    let d_else = derive(env, e_else, version)?;
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: expr.clone(),
-                        result: d_else.result.clone(),
-                        rule: "E-IfF".to_string(),
-                        sub_derivations: vec![d_cond, d_else],
-                        version,
-                    })
-                }
-                _ => panic!("Condition must evaluate to a boolean"),
-            }
-        }
-        Expr::Let(x, e1, e2) => {
-            let d1 = derive(env, e1, version)?;
-            let mut new_env = env.clone();
-            new_env.push((x.clone(), d1.result.clone()));
-            let rc_env = new_env;
-            let d2 = derive(&rc_env, e2, version)?;
-            Ok(Derivation {
-                env: env.clone(),
-                expr: expr.clone(),
-                result: d2.result.clone(),
-                rule: "E-Let".to_string(),
-                sub_derivations: vec![d1, d2],
-                version,
-            })
-        }
-        Expr::Fun(param, body) => {
-            Ok(Derivation {
-                env: env.clone(),
-                expr: expr.clone(),
-                result: Value::FunVal(param.clone(), body.clone(), env.clone(),),
-                rule: "E-Fun".to_string(),
-                sub_derivations: vec![],
-                version,
-            })
-        }
-        Expr::App(f, arg) => {
-            let df = derive(env, f, version)?;
-            let darg = derive(env, arg, version)?;
-            let result;
-            let sub_derivations;
-            match &df.result {
-                Value::FunVal(param, body, closure_env) => {
-                    let mut new_env = (**closure_env).to_vec();
-                    new_env.push((param.clone(), darg.result.clone()));
-                    // let rc_env = Rc::new(new_env);
-                    let d_body = derive(&new_env, &body, version)?;
-                    result = d_body.result.clone();
-                    sub_derivations = vec![df, darg, d_body];
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: Expr::App(f.clone(), arg.clone()),
-                        result,
-                        rule: "E-App".to_string(),
-                        sub_derivations,
-                        version,
-                    })
-                }
-                Value::RecFunVal(name, param, body, closure_env) => {
-                    let mut new_env = (**closure_env).to_vec();
-                    new_env.push((name.clone(), Value::RecFunVal(name.clone(), param.clone(), body.clone(), closure_env.clone())));
-                    new_env.push((param.clone(), darg.result.clone()));
-                    // let rc_env = Rc::new(new_env);
-                    let d_body = derive(&new_env, &body, version)?;
-                    result = d_body.result.clone();
-                    sub_derivations = vec![df, darg, d_body];
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: Expr::App(f.clone(), arg.clone()),
-                        result,
-                        rule: "E-AppRec".to_string(),
-                        sub_derivations,
-                        version,
-                    })
-                }
-                _ => panic!("Tried to apply non-function"),
-            }
-        }
-        Expr::LetRec(f, x, body, e2) => {
-            let mut new_env = env.clone();
-            let rec_val = Value::RecFunVal(f.clone(), x.clone(), body.clone(), new_env.clone());
-            new_env.push((f.clone(), rec_val.clone()));
-            // let rc_env = Rc::new(new_env);
-            let d2 = derive(&new_env, e2, version)?;
-            Ok(Derivation {
-                env: env.clone(),
-                expr: expr.clone(),
-                result: d2.result.clone(),
-                rule: "E-LetRec".to_string(),
-                sub_derivations: vec![d2],
-                version,
-            })
-        }
-        Expr::Nil => Ok(Derivation {
-            env: env.clone(),
-            expr: expr.clone(),
-            result: Value::Nil,
-            rule: "E-Nil".to_string(),
-            sub_derivations: vec![],
-            version,
-        }),
-        Expr::Match(e, e_nil, x, y, e_cons) => {
-            let d_expr = derive(env, e, version)?;
-            match d_expr.result.clone() {
-                Value::Nil => {
-                    let d_nil = derive(env, e_nil, version)?;
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: expr.clone(),
-                        result: d_nil.result.clone(),
-                        rule: "E-MatchNil".to_string(),
-                        sub_derivations: vec![d_expr, d_nil],
-                        version,
-                    })
-                }
-                Value::Cons(v1, v2) => {
-                    let mut new_env = env.clone();
-                    new_env.push((x.clone(), *v1));
-                    new_env.push((y.clone(), *v2));
-                    // let rc_env = Rc::new(new_env);
-                    let d_cons = derive(&new_env, e_cons, version)?;
-                    Ok(Derivation {
-                        env: env.clone(),
-                        expr: expr.clone(),
-                        result: d_cons.result.clone(),
-                        rule: "E-MatchCons".to_string(),
-                        sub_derivations: vec![d_expr, d_cons],
-                        version,
-                    })
-                }
-                _ => panic!("Cannot match on non-list value"),
-            }
-        },
-        _ => Err("This judgment type is not supported by the type checker.".to_string()),
-    }
-} 
+//             Ok(Derivation {
+//                 env: env.clone(),
+//                 expr: expr.clone(),
+//                 result,
+//                 rule: rule.to_string(),
+//                 sub_derivations,
+//                 version,
+//             })
+//         }
+//         Expr::If(cond, e_then, e_else) => {
+//             let d_cond = derive(env, cond, version)?;
+//             match d_cond.result {
+//                 Value::Bool(true) => {
+//                     let d_then = derive(env, e_then, version)?;
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: expr.clone(),
+//                         result: d_then.result.clone(),
+//                         rule: "E-IfT".to_string(),
+//                         sub_derivations: vec![d_cond, d_then],
+//                         version,
+//                     })
+//                 }
+//                 Value::Bool(false) => {
+//                     let d_else = derive(env, e_else, version)?;
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: expr.clone(),
+//                         result: d_else.result.clone(),
+//                         rule: "E-IfF".to_string(),
+//                         sub_derivations: vec![d_cond, d_else],
+//                         version,
+//                     })
+//                 }
+//                 _ => panic!("Condition must evaluate to a boolean"),
+//             }
+//         }
+//         Expr::Let(x, e1, e2) => {
+//             let d1 = derive(env, e1, version)?;
+//             let mut new_env = env.clone();
+//             new_env.push((x.clone(), d1.result.clone()));
+//             let rc_env = new_env;
+//             let d2 = derive(&rc_env, e2, version)?;
+//             Ok(Derivation {
+//                 env: env.clone(),
+//                 expr: expr.clone(),
+//                 result: d2.result.clone(),
+//                 rule: "E-Let".to_string(),
+//                 sub_derivations: vec![d1, d2],
+//                 version,
+//             })
+//         }
+//         Expr::Fun(param, body) => {
+//             Ok(Derivation {
+//                 env: env.clone(),
+//                 expr: expr.clone(),
+//                 result: Value::FunVal(param.clone(), body.clone(), env.clone(),),
+//                 rule: "E-Fun".to_string(),
+//                 sub_derivations: vec![],
+//                 version,
+//             })
+//         }
+//         Expr::App(f, arg) => {
+//             let df = derive(env, f, version)?;
+//             let darg = derive(env, arg, version)?;
+//             let result;
+//             let sub_derivations;
+//             match &df.result {
+//                 Value::FunVal(param, body, closure_env) => {
+//                     let mut new_env = closure_env.clone();
+//                     new_env.push((param.clone(), darg.result.clone()));
+//                     // let rc_env = Rc::new(new_env);
+//                     let d_body = derive(&new_env, &body, version)?;
+//                     result = d_body.result.clone();
+//                     sub_derivations = vec![df, darg, d_body];
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: Expr::App(f.clone(), arg.clone()),
+//                         result,
+//                         rule: "E-App".to_string(),
+//                         sub_derivations,
+//                         version,
+//                     })
+//                 }
+//                 Value::RecFunVal(name, param, body, closure_env) => {
+//                     let mut new_env = closure_env.clone();
+//                     new_env.push((name.clone(), Value::RecFunVal(name.clone(), param.clone(), body.clone(), closure_env.clone())));
+//                     new_env.push((param.clone(), darg.result.clone()));
+//                     // let rc_env = Rc::new(new_env);
+//                     let d_body = derive(&new_env, &body, version)?;
+//                     result = d_body.result.clone();
+//                     sub_derivations = vec![df, darg, d_body];
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: Expr::App(f.clone(), arg.clone()),
+//                         result,
+//                         rule: "E-AppRec".to_string(),
+//                         sub_derivations,
+//                         version,
+//                     })
+//                 }
+//                 _ => panic!("Tried to apply non-function"),
+//             }
+//         }
+//         Expr::LetRec(f, x, body, e2) => {
+//             let mut new_env = env.clone();
+//             let rec_val = Value::RecFunVal(f.clone(), x.clone(), body.clone(), new_env.clone());
+//             new_env.push((f.clone(), rec_val.clone()));
+//             // let rc_env = Rc::new(new_env);
+//             let d2 = derive(&new_env, e2, version)?;
+//             Ok(Derivation {
+//                 env: env.clone(),
+//                 expr: expr.clone(),
+//                 result: d2.result.clone(),
+//                 rule: "E-LetRec".to_string(),
+//                 sub_derivations: vec![d2],
+//                 version,
+//             })
+//         }
+//         Expr::Nil => Ok(Derivation {
+//             env: env.clone(),
+//             expr: expr.clone(),
+//             result: Value::Nil,
+//             rule: "E-Nil".to_string(),
+//             sub_derivations: vec![],
+//             version,
+//         }),
+//         Expr::Match(e, e_nil, x, y, e_cons) => {
+//             let d_expr = derive(env, e, version)?;
+//             match d_expr.result.clone() {
+//                 Value::Nil => {
+//                     let d_nil = derive(env, e_nil, version)?;
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: expr.clone(),
+//                         result: d_nil.result.clone(),
+//                         rule: "E-MatchNil".to_string(),
+//                         sub_derivations: vec![d_expr, d_nil],
+//                         version,
+//                     })
+//                 }
+//                 Value::Cons(v1, v2) => {
+//                     let mut new_env = env.clone();
+//                     new_env.push((x.clone(), *v1));
+//                     new_env.push((y.clone(), *v2));
+//                     // let rc_env = Rc::new(new_env);
+//                     let d_cons = derive(&new_env, e_cons, version)?;
+//                     Ok(Derivation {
+//                         env: env.clone(),
+//                         expr: expr.clone(),
+//                         result: d_cons.result.clone(),
+//                         rule: "E-MatchCons".to_string(),
+//                         sub_derivations: vec![d_expr, d_cons],
+//                         version,
+//                     })
+//                 }
+//                 _ => panic!("Cannot match on non-list value"),
+//             }
+//         },
+//         _ => Err("This judgment type is not supported by the type checker.".to_string()),
+//     }
+// } 

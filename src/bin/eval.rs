@@ -3,7 +3,7 @@ use std::env;
 
 use imic2::common;
 use imic2::eval::version::LanguageVersion;
-use imic2::eval::eval::derive_judgement;
+//use imic2::eval::eval::derive_judgement;
 use imic2::eval::parser::Parser;
 
 
@@ -47,10 +47,10 @@ fn main() {
         }
     };
 
-    match derive_judgement(&judgment, version) {
-        Ok(derivation) => {
-            println!("{}", derivation);
-        },
-        Err(e) => eprintln!("Type Error: {}", e),
-    };
+    // match derive_judgement(&judgment, version) {
+    //     Ok(derivation) => {
+    //         println!("{}", derivation);
+    //     },
+    //     Err(e) => eprintln!("Type Error: {}", e),
+    // };
 }

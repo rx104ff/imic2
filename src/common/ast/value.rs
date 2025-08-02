@@ -1,7 +1,5 @@
-use crate::common::ast::{core::{FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, NamedVar, NamelessVar, Op, Variable}, expr::Expr};
-use std::fmt::{self, Debug};
-
-pub type Env<V> = Vec<(V, Value<V>)>;
+use crate::common::ast::{core::{FromBool, FromGroup, FromInt, FromNil, FromUnaryOp, NamedVar, NamelessVar, Op, Variable}, env::{Env, EnvDisplay}, expr::Expr};
+use std::fmt::{self, Debug, Display};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<V: Variable> {
@@ -9,8 +7,8 @@ pub enum Value<V: Variable> {
     Bool(bool),
     Nil,
     Cons(Box<Value<V>>, Box<Value<V>>),
-    FunVal(V, Box<Expr<V>>, Env<V>),
-    RecFunVal(V, V, Box<Expr<V>>, Env<V>),
+    FunVal(V, Box<Expr<V>>, Env<V, Value<V>>),
+    RecFunVal(V, V, Box<Expr<V>>, Env<V, Value<V>>),
     Group(Box<Value<V>>)
 }
 
@@ -18,58 +16,58 @@ pub type NamedValue = Value<NamedVar>;
 
 pub type NamelessValue = Value<NamelessVar>;
 
-pub trait DisplayEnv {
-    fn display_env(&self) -> String;
-}
-
-pub type NamedEnv = Env<NamedVar>;
-
-impl DisplayEnv for NamedEnv {
-    fn display_env(&self) -> String {
-        if self.is_empty() {
-            format!("()")
-        } else {
-            let parts: Vec<String> = self.iter().map(|(v, val)| format!("{} = {}", v, val)).collect();
-            format!("({})", parts.join(", "))
-        }
-    }
-}
-
-pub type NamelessEnv = Env<NamelessVar>;
-
-impl DisplayEnv for NamelessEnv {
-    fn display_env(&self) -> String {
-        if self.is_empty() {
-            format!("()")
-        } else {
-            let parts: Vec<String> = self.iter().map(|(_, val)| format!("{}", val)).collect();
-            format!("({})", parts.join(", "))
-        }
-    }
-}
-
-impl<E: Variable  + 'static> fmt::Display for Value<E> where E: std::fmt::Display,
-Env<E>: DisplayEnv, // Add this trait bound
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: Variable> Value<V> {
+    // This no longer needs the problematic trait bound
+    fn fmt_logic(&self, f: &mut fmt::Formatter<'_>, is_env_context: bool) -> fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{}", i),
             Value::Bool(b) => write!(f, "{}", b),
             Value::Nil => write!(f, "[]"),
+            Value::FunVal(param, body, _env) => {
+                // In an environment, show a placeholder. Otherwise, show the function signature.
+                if is_env_context {
+                    write!(f, "<fun>")
+                } else {
+                    // NEVER display the captured environment here. This is the key.
+                    write!(f, "fun {} -> {}", param, body)
+                }
+            }
+            Value::RecFunVal(func, param, body, _env) => {
+                // In an environment, show a placeholder. Otherwise, show the function signature.
+                if is_env_context {
+                    write!(f, "<rec fun>")
+                } else {
+                     // NEVER display the captured environment here.
+                    write!(f, "rec {} = fun {} -> {}", func, param, body)
+                }
+            }
             Value::Cons(h, t) => {
-                let s = format!("{} :: {}", h, t);
-                write!(f, "{}", s)
-            }
-            Value::FunVal(param, body, env) => {
-                write!(f, "{}[fun {} -> {}]", env.display_env(), param, body)
-            }
-            Value::RecFunVal(func, param, body, env) => {
-                write!(f, "{}[rec {} = fun {} -> {}]", env.display_env(), func, param, body)
+                if is_env_context {
+                    write!(f, "[..]") // Placeholder for lists in an env
+                } else {
+                    write!(f, "{}::{}", h, t)
+                }
             }
             Value::Group(v) => {
-                write!(f, "({})", v)
+                write!(f, "(")?;
+                v.fmt_logic(f, is_env_context)?;
+                write!(f, ")")
             }
         }
+    }
+}
+
+// The Display impl is now clean and has no complex bounds.
+impl<V: Variable> Display for Value<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_logic(f, false)
+    }
+}
+
+// The EnvDisplay impl is also clean.
+impl<V: Variable> EnvDisplay for Value<V> {
+    fn fmt_for_env(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_logic(f, true)
     }
 }
 

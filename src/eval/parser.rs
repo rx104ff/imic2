@@ -1,6 +1,7 @@
 // src/parser.rs
 
 use crate::common::ast::core::NamedVar;
+use crate::common::ast::env::Env;
 use crate::common::ast::judgement::Judgment;
 use crate::common::ast::value::NamedValue;
 use crate::parser::environment::traits::EnvironmentParser;
@@ -77,7 +78,7 @@ impl Parser {
         let env = if let Some(Token::Ident(_)) = self.core().peek() {
             <Self as EnvironmentParser<NamedVar, NamedValue>>::parse_env_list(self)
         } else {
-            Ok(vec![])
+            Ok(Env(vec![]))
         }?;
         self.core().expect(Token::Turnstile)?;
         let expr = self.parse_expr()?;

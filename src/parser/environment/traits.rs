@@ -1,4 +1,4 @@
-use crate::{common::{ast::{core::{NamedVar, NamelessVar, Variable}, expr::Expr, r#type::{Scheme, Type}, value::Value}, tokenizer::Token}, parser::{primitive::{traits::{ParseableVariable, VariableParsing}, HasState, TypeVarState}, BaseParser, TypeParser, ValueParser}};
+use crate::{common::{ast::{core::{NamedVar, NamelessVar, Variable}, env::Env, expr::Expr, r#type::{Scheme, Type}, value::Value}, tokenizer::Token}, parser::{primitive::{traits::{ParseableVariable, VariableParsing}, HasState, TypeVarState}, BaseParser, TypeParser, ValueParser}};
 
 pub trait ParseMeta {
     fn separator() -> Option<Token> {
@@ -113,7 +113,7 @@ where
 
 pub trait EnvironmentParser<V, T>: BaseParser<V = V>
 where V: Variable{
-    fn parse_env_list(&mut self) -> Result<Vec<(V, T)>, String>;
+    fn parse_env_list(&mut self) -> Result<Env<V, T>, String>;
 }
 
 impl<P, V, T> EnvironmentParser<V, T> for P
@@ -121,24 +121,24 @@ where
     P: BaseParser<V = V> + ItemParser<V, T> + VariableParsing<Expr<V>> + ?Sized,
     V: Variable + Clone + ParseableVariable + EnvironmentParsingStrategy<P::V, T>,
 {
-    fn parse_env_list(&mut self) -> Result<Vec<(V, T)>, String> {
+    fn parse_env_list(&mut self) -> Result<Env<V, T>, String> {
         V::parse_env(self)
     }
 }
 
 /// The strategy trait must also be generic over the item type `T`.
 pub trait EnvironmentParsingStrategy<V: Variable + ParseableVariable, T> {
-    fn parse_env<P>(parser: &mut P) -> Result<Vec<(V, T)>, String>
+    fn parse_env<P>(parser: &mut P) -> Result<Env<V, T>, String>
     where
         P: BaseParser<V = V> + ItemParser<V, T> + VariableParsing<Expr<V>> + ?Sized;
 }
 
 impl<T: ParseMeta> EnvironmentParsingStrategy<NamedVar, T> for NamedVar {
-    fn parse_env<P>(parser: &mut P) -> Result<Vec<(NamedVar, T)>, String>
+    fn parse_env<P>(parser: &mut P) -> Result<Env<NamedVar, T>, String>
     where
         P: BaseParser<V = NamedVar> + ItemParser<NamedVar, T> + VariableParsing<Expr<NamedVar>> + ?Sized,
     {
-        let mut bindings = vec![];
+        let mut bindings = Env(vec![]);
         if parser.core().peek() == Some(&Token::Turnstile) {
             return Ok(bindings);
         }
@@ -163,18 +163,21 @@ impl<T: ParseMeta> EnvironmentParsingStrategy<NamedVar, T> for NamedVar {
 }
 
 impl<T> EnvironmentParsingStrategy<NamelessVar, T> for NamelessVar {
-    fn parse_env<P>(parser: &mut P) -> Result<Vec<(NamelessVar, T)>, String>
+    fn parse_env<P>(parser: &mut P) -> Result<Env<NamelessVar, T>, String>
     where
         P: BaseParser<V = NamelessVar> + ItemParser<NamelessVar, T> + VariableParsing<Expr<NamelessVar>> + ?Sized,
     {
-        let mut items = vec![];
+        let mut bindings = Env(vec![]);
         if parser.core().peek() == Some(&Token::Turnstile) {
-            return Ok(vec![]);
+            return Ok(bindings);
         }
 
         loop {
             let item = parser.parse_item()?;
-            items.push(item);
+            let binder = NamelessVar::from_token(&Token::Dot)
+                .ok_or_else(|| "Internal Error: Could not create a dot binder for nameless environment parsing.".to_string())?;
+            
+            bindings.push((binder, item));
 
             if parser.core().peek() == Some(&Token::Comma) {
                 parser.core().advance();
@@ -182,11 +185,7 @@ impl<T> EnvironmentParsingStrategy<NamelessVar, T> for NamelessVar {
                 break;
             }
         }
-
-        let bindings = items
-            .into_iter()
-            .filter_map(|item| NamelessVar::from_token(&Token::Dot).map(|binder| (binder, item)))
-            .collect();
+        
         Ok(bindings)
     }
 }
