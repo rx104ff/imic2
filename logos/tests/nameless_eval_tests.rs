@@ -1,6 +1,6 @@
-use imic2::common;
-use imic2::nameless::parser::Parser;
-use imic2::nameless::eval::{derive_judgement};
+use logos::common;
+use logos::nameless::parser::Parser;
+use logos::nameless::eval::{derive_judgement};
 use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the nameless evaluator.

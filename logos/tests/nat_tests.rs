@@ -1,6 +1,6 @@
-use imic2::{common, nat};
-use imic2::nat::version::ComparisonMode;
-use imic2::nat::parser::Parser;
+use logos::{common, nat};
+use logos::nat::version::ComparisonMode;
+use logos::nat::parser::Parser;
 
 use insta::assert_snapshot;
 

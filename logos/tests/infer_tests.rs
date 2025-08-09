@@ -1,4 +1,4 @@
-use imic2::{common, infer};
+use logos::{common, infer};
 use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the type checker.

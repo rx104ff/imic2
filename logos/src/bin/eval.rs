@@ -1,10 +1,10 @@
 // src/main.rs
 use std::env;
 
-use imic2::common;
-use imic2::eval::version::LanguageVersion;
+use logos::common;
+use logos::eval::version::LanguageVersion;
 //use imic2::eval::eval::derive_judgement;
-use imic2::eval::parser::Parser;
+use logos::eval::parser::Parser;
 
 
 fn main() {

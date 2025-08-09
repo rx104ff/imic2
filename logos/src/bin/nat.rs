@@ -1,5 +1,5 @@
 use std::env;
-use imic2::{common, nat};
+use logos::{common, nat};
 
 fn main() {
     let args: Vec<String> = env::args().collect();

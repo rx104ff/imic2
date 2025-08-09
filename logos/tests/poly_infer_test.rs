@@ -1,4 +1,4 @@
-use imic2::{common::{self}, poly_infer};
+use logos::{common::{self}, poly_infer};
 use insta::assert_snapshot;
 
 /// A helper function to simulate a full run of the polymorphic type inferrer.

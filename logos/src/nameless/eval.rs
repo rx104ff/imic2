@@ -6,7 +6,6 @@ use crate::{
         },
         proof::{Derivation, Judgment},
     },
-    nameless::proof::Axiom,
 };
 
 type NamelessDerivation = Derivation<Judgment<NamelessVar, NamelessValue, NamelessValue>>;
