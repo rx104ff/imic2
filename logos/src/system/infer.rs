@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{common::{ast::{core::{NamedVar, Op, Variable}, expr::Expr, r#type::{Type, TypeVar}}, proof::{Derivation, Judgment}, unifier::Substitution}, system::traits::{Axiom, Rule}};
+use crate::{common::{ast::{core::{NamedVar, Op, Variable}, expr::Expr, r#type::{Type, TypeVar}}, proof::{Derivation, Judgment}, unifier::Substitution}, system::{judgment_traits::{HasExpr, HasResult}, traits::{Axiom, Rule}}};
 
 pub use logos_proc::define_system;
 
@@ -32,12 +32,36 @@ impl InferContext {
 
 // RULE: Provides the T-Int rule. Since it's a terminal rule, it has no
 // recursive premises and needs no axiom.
+// pub struct TIntRule;
+// impl Rule<InferJudgment, InferContext> for TIntRule {
+//     fn apply(&self, _ctx: &mut InferContext, j: &InferJudgment) -> Option<Result<(String, Vec<InferJudgment>), String>> {
+//         if let Expr::Int(_) = j.expr {
+//             if j.result == Type::Int {
+//                 // This rule has no recursive premises.
+//                 return Some(Ok(("T-Int".to_string(), vec![])));
+//             }
+//         }
+//         None
+//     }
+// }
+
+pub trait IsIntType { fn is_int(&self) -> bool; }
+impl<V: Variable> IsIntType for Type<V> {
+    fn is_int(&self) -> bool {
+        matches!(self, Type::Int)
+    }
+}
+
 pub struct TIntRule;
-impl Rule<InferJudgment, InferContext> for TIntRule {
-    fn apply(&self, _ctx: &mut InferContext, j: &InferJudgment) -> Option<Result<(String, Vec<InferJudgment>), String>> {
-        if let Expr::Int(_) = j.expr {
-            if j.result == Type::Int {
-                // This rule has no recursive premises.
+impl<J, C> Rule<J, C> for TIntRule
+where
+    J: HasExpr + HasResult,
+    J::R: IsIntType, // e.g. J::R can be `Type<NamedVar>` and this will work
+{
+    fn apply(&self, _ctx: &mut C, j: &J) -> Option<Result<(String, Vec<J>), String>> {
+        if let Expr::Int(_) = j.expr() {
+            // This comparison now works generically thanks to the new `PartialEq` impl.
+            if j.result().is_int() {
                 return Some(Ok(("T-Int".to_string(), vec![])));
             }
         }
@@ -83,22 +107,23 @@ impl Axiom<InferJudgment, InferContext> for BPlusAxiom {
 define_system! {
     pub struct InferenceSystem {
         rule TIntRule;
-        rule TPlusRule => axiom BPlusAxiom;
+        rule TPlusRule;
     },
     judgment: InferJudgment,
     context: InferContext
 }
 
-impl InferenceSystem {
-    pub fn new() -> Self {
-        Self {
-            providers: (
-                (TIntRule, None),
-                (TPlusRule, None),
-            ),
-        }
-    }
-}
+
+// impl InferenceSystem {
+//     pub fn new() -> Self {
+//         Self {
+//             providers: (
+//                 (TIntRule, None),
+//                 (TPlusRule, None),
+//             ),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

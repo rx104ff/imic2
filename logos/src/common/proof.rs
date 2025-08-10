@@ -1,13 +1,15 @@
 // src/common/proof.rs
 use std::fmt::{self, Display};
 
+use logos_proc::{JudgmentTraits};
+
 use crate::common::ast::{core::Variable, env::{Env, FormatStyleFor}, expr::Expr};
 
 /// A generic judgment representing a statement about an expression.
 /// - `V`: The type of variable (e.g., NamedVar).
 /// - `T`: The type of item stored in the environment (e.g., Value or Type).
 /// - `R`: The type of the result (e.g., Value or Type).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, JudgmentTraits)]
 pub struct Judgment<V: Variable, T, R: Display> {
     pub env: Env<V, T>,
     pub expr: Expr<V>,
