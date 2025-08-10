@@ -1,5 +1,3 @@
-use core::str;
-
 use crate::common::proof::Derivation;
 
 /// The central trait for a derivable system.

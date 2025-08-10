@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{common::{ast::{core::{NamedVar, Op, Variable}, expr::Expr, r#type::{Type, TypeVar}}, proof::{Derivation, Judgment}, unifier::Substitution}, system::{judgment_traits::{HasExpr, HasResult}, core::{Axiom, Rule}}};
+use crate::{common::{ast::{core::{NamedVar, Op, Variable}, expr::Expr, r#type::{IsIntType, Type, TypeVar}}, proof::{Derivation, Judgment}, unifier::Substitution}, system::{core::{Axiom, Rule}, judgment_traits::{HasExpr, HasResult}}};
 
 pub use logos_proc::define_system;
 
@@ -27,28 +27,6 @@ impl InferContext {
         let id = self.var_counter;
         self.var_counter += 1;
         Type::Var(TypeVar { id: id + 1000, name })
-    }
-}
-
-// RULE: Provides the T-Int rule. Since it's a terminal rule, it has no
-// recursive premises and needs no axiom.
-// pub struct TIntRule;
-// impl Rule<InferJudgment, InferContext> for TIntRule {
-//     fn apply(&self, _ctx: &mut InferContext, j: &InferJudgment) -> Option<Result<(String, Vec<InferJudgment>), String>> {
-//         if let Expr::Int(_) = j.expr {
-//             if j.result == Type::Int {
-//                 // This rule has no recursive premises.
-//                 return Some(Ok(("T-Int".to_string(), vec![])));
-//             }
-//         }
-//         None
-//     }
-// }
-
-pub trait IsIntType { fn is_int(&self) -> bool; }
-impl<V: Variable> IsIntType for Type<V> {
-    fn is_int(&self) -> bool {
-        matches!(self, Type::Int)
     }
 }
 

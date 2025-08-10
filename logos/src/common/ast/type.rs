@@ -150,3 +150,10 @@ impl<V: Variable> FromGroup for Type<V> {
         Type::Group(Box::new(inner))
     }
 }
+
+pub trait IsIntType { fn is_int(&self) -> bool; }
+impl<V: Variable> IsIntType for Type<V> {
+    fn is_int(&self) -> bool {
+        matches!(self, Type::Int)
+    }
+}
