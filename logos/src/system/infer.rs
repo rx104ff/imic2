@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{common::{ast::{core::{NamedVar, Op, Variable}, expr::Expr, r#type::{Type, TypeVar}}, proof::{Derivation, Judgment}, unifier::Substitution}, system::{judgment_traits::{HasExpr, HasResult}, traits::{Axiom, Rule}}};
+use crate::{common::{ast::{core::{NamedVar, Op, Variable}, expr::Expr, r#type::{Type, TypeVar}}, proof::{Derivation, Judgment}, unifier::Substitution}, system::{judgment_traits::{HasExpr, HasResult}, core::{Axiom, Rule}}};
 
 pub use logos_proc::define_system;
 
@@ -128,7 +128,7 @@ define_system! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{common::ast::env::Env, system::traits::System};
+    use crate::{common::ast::env::Env, system::core::System};
 
     #[test]
     fn test_derive_one_plus_two() {

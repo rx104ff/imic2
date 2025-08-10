@@ -132,8 +132,8 @@ pub fn define_system(input: TokenStream) -> TokenStream {
     let context_type = &def.context_type;
 
     let provider_types = def.rules.iter().map(|_| {
-        let rule_trait_obj = quote! { Box<dyn crate::system::traits::Rule<#judgment_type, #context_type>> };
-        let axiom_trait_obj = quote! { Option<Box<dyn crate::system::traits::Axiom<#judgment_type, #context_type>>> };
+        let rule_trait_obj = quote! { Box<dyn crate::system::core::Rule<#judgment_type, #context_type>> };
+        let axiom_trait_obj = quote! { Option<Box<dyn crate::system::core::Axiom<#judgment_type, #context_type>>> };
         quote! { (#rule_trait_obj, #axiom_trait_obj) }
     });
 
@@ -185,9 +185,9 @@ pub fn define_system(input: TokenStream) -> TokenStream {
             ),
         }
 
-        impl crate::system::traits::System<#judgment_type, #context_type> for #system_name {
+        impl crate::system::core::System<#judgment_type, #context_type> for #system_name {
             fn derive(&self, ctx: &mut #context_type, judgment: &#judgment_type) -> Result<crate::common::proof::Derivation<#judgment_type>, String> {
-                use crate::system::traits::{Axiom, Rule};
+                use crate::system::core::{Axiom, Rule};
                 #derive_body
                 Err(format!("No rule found to derive the judgment for: {:?}", judgment))
             }

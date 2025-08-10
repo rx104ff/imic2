@@ -1,4 +1,4 @@
-pub mod traits;
+pub mod core;
 pub mod macros;
 pub mod infer;
 pub mod judgment_traits;
